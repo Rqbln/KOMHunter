@@ -1,4 +1,3 @@
-![KOMHunter Logo](logo.png)
 # Strava KOM Hunter 🏃‍♂️🚴‍♀️
 
 **Strava KOM Hunter** is a Python-powered tool that helps runners and cyclists identify and visualize the easiest Strava segments (KOM/QOM) to target in a selected area.  
