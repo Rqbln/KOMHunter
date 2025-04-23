@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import folium
 from streamlit_folium import folium_static
 from strava_client import get_my_last_activities
@@ -138,7 +139,7 @@ if explore_button:
                         kom_time = segment_details["kom_data"]["elapsed_time_formatted"]
                     
                     segment_data.append({
-                        "ID": seg["id"],
+                        "ID": f'<a href="https://www.strava.com/segments/{seg["id"]}" target="_blank">{seg["id"]}</a>',
                         "Segment": seg["name"],
                         "Distance": f"{seg['distance']/1000:.2f} km",
                         "Grade": f"{seg['avg_grade']:.1f}%",
@@ -203,15 +204,8 @@ if explore_button:
             
             # Display results table
             if len(segment_data) > 0:
-                results_container.dataframe(segment_data, use_container_width=True, 
-                                           column_config={
-                                               "ID": st.column_config.NumberColumn("ID"),
-                                               "Segment": st.column_config.TextColumn("Segment"),
-                                               "Distance": st.column_config.TextColumn("Distance"),
-                                               "Grade": st.column_config.TextColumn("Grade (%)"),
-                                               "KOM": st.column_config.TextColumn("KOM Holder"),
-                                               "Time": st.column_config.TextColumn("KOM Time")
-                                           })
+                df = pd.DataFrame(segment_data)
+                results_container.markdown(df.to_html(escape=False, index=False), unsafe_allow_html=True)
             else:
                 results_container.warning("Aucun segment trouvé avec des détails complets")
         else:
