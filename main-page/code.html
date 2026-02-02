@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>KOMHunter Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0df259",
+                        "primary-hover": "#0bc94a",
+                        "background-light": "#f8fcf9",
+                        "background-dark": "#102216",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#1a3322",
+                        "text-main": "#0d1c12",
+                        "text-light": "#ffffff",
+                        "border-light": "#e7f4eb",
+                        "border-dark": "#2a4533",
+                        "subtle-green": "#499c65",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #e2e8f0;
+            border-radius: 20px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #2a4533;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-text-main dark:text-text-light font-display overflow-hidden h-screen flex flex-col transition-colors duration-200">
+<!-- Top Navigation -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-border-light dark:border-border-dark px-6 py-3 bg-surface-light dark:bg-background-dark z-20">
+<div class="flex items-center gap-4 text-text-main dark:text-text-light">
+<div class="size-8 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-3xl">bolt</span>
+</div>
+<h2 class="text-text-main dark:text-text-light text-xl font-bold leading-tight tracking-[-0.015em]">KOMHunter</h2>
+</div>
+<div class="flex flex-1 justify-end gap-6 items-center">
+<div class="hidden md:flex gap-2">
+<button class="flex items-center justify-center rounded-full size-10 bg-border-light dark:bg-surface-dark text-text-main dark:text-text-light hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+<button class="flex items-center justify-center rounded-full size-10 bg-border-light dark:bg-surface-dark text-text-main dark:text-text-light hover:bg-primary/20 transition-colors relative">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-primary rounded-full"></span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-4 border-l border-border-light dark:border-border-dark">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 border-2 border-primary" data-alt="User profile avatar showing a smiling athlete" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDclMMhzO6vBD5Q2vzVFW80Emr9EdEobad0R0yY3U7FmemhmEhdJngmzy68GD4JUvbRhBWCzcTy0TXm0X8RyttIZ5sWMXvjOariY1QCeTnv6hN1dlS3IwCZuTsOhJ_5Vd-B_ZpHDn4TULWnpIcJaixD8qgp3-JwKUYtq81IUMRGYgYEZ6t6ccLwHnBbN4QLXBCQhdpRIlUiKr331abP36vMYFsE38W-Ut_Jo0I2V-t2HwubPDuYK9Tagkbw0v9lpyYXBABAbbYLkmWJ");'></div>
+<div class="hidden lg:block">
+<p class="text-sm font-bold leading-tight">Alex Runner</p>
+<p class="text-xs text-subtle-green dark:text-primary/70">Pro Member</p>
+</div>
+</div>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden">
+<!-- Sidebar -->
+<aside class="w-80 flex-shrink-0 border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark overflow-y-auto custom-scrollbar flex flex-col z-10 shadow-sm">
+<div class="p-6 space-y-8">
+<!-- Headline -->
+<div>
+<h3 class="text-text-main dark:text-text-light tracking-tight text-xl font-bold leading-tight">Hunt Parameters</h3>
+<p class="text-sm text-subtle-green dark:text-gray-400 mt-1">Configure your search area</p>
+</div>
+<!-- Location Input -->
+<div class="space-y-3">
+<label class="text-text-main dark:text-text-light text-sm font-medium leading-normal">Target Location</label>
+<div class="relative">
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-xl text-text-main dark:text-text-light focus:outline-0 focus:ring-2 focus:ring-primary border border-border-light dark:border-border-dark bg-background-light dark:bg-surface-dark focus:border-primary h-12 pl-10 pr-4 placeholder:text-subtle-green/60 dark:placeholder:text-gray-500 text-sm font-normal leading-normal transition-all" placeholder="City, region, or zip" value="Boulder, CO"/>
+<span class="material-symbols-outlined absolute left-3 top-3 text-subtle-green">location_on</span>
+</div>
+</div>
+<!-- Sport Type Toggle -->
+<div class="space-y-3">
+<label class="text-text-main dark:text-text-light text-sm font-medium leading-normal">Sport Type</label>
+<div class="flex h-12 w-full items-center justify-center rounded-full bg-background-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-1">
+<label class="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-full px-2 has-[:checked]:bg-primary has-[:checked]:shadow-sm has-[:checked]:text-black text-subtle-green dark:text-gray-400 text-sm font-bold leading-normal transition-all duration-200">
+<span class="flex items-center gap-2"><span class="material-symbols-outlined text-lg">directions_run</span>Run</span>
+<input class="invisible w-0 absolute" name="sport_type" type="radio" value="Run"/>
+</label>
+<label class="flex cursor-pointer h-full grow items-center justify-center overflow-hidden rounded-full px-2 has-[:checked]:bg-primary has-[:checked]:shadow-sm has-[:checked]:text-black text-subtle-green dark:text-gray-400 text-sm font-bold leading-normal transition-all duration-200">
+<span class="flex items-center gap-2"><span class="material-symbols-outlined text-lg">pedal_bike</span>Ride</span>
+<input checked="" class="invisible w-0 absolute" name="sport_type" type="radio" value="Ride"/>
+</label>
+</div>
+</div>
+<!-- Sliders -->
+<div class="space-y-6">
+<!-- Radius Slider -->
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<p class="text-text-main dark:text-text-light text-sm font-medium leading-normal">Search Radius</p>
+<p class="text-primary text-sm font-bold leading-normal">25 km</p>
+</div>
+<div class="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-surface-dark cursor-pointer group">
+<div class="h-full w-[45%] rounded-full bg-primary relative">
+<div class="absolute -right-1.5 -top-[5px] size-4 rounded-full bg-white border-2 border-primary shadow-md transform group-hover:scale-110 transition-transform"></div>
+</div>
+</div>
+<div class="flex justify-between text-xs text-subtle-green dark:text-gray-500 font-medium">
+<span>1km</span>
+<span>100km</span>
+</div>
+</div>
+<!-- Count Slider -->
+<div class="space-y-3">
+<div class="flex justify-between items-center">
+<p class="text-text-main dark:text-text-light text-sm font-medium leading-normal">Max Segments</p>
+<p class="text-primary text-sm font-bold leading-normal">50</p>
+</div>
+<div class="flex h-2 w-full items-center rounded-full bg-border-light dark:bg-surface-dark cursor-pointer group">
+<div class="h-full w-[25%] rounded-full bg-primary relative">
+<div class="absolute -right-1.5 -top-[5px] size-4 rounded-full bg-white border-2 border-primary shadow-md transform group-hover:scale-110 transition-transform"></div>
+</div>
+</div>
+<div class="flex justify-between text-xs text-subtle-green dark:text-gray-500 font-medium">
+<span>10</span>
+<span>200</span>
+</div>
+</div>
+</div>
+<div class="pt-4">
+<button class="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-12 bg-primary hover:bg-primary-hover text-[#0d1c12] text-base font-bold leading-normal tracking-[0.015em] shadow-lg shadow-primary/20 transition-all active:scale-95">
+<span class="mr-2 material-symbols-outlined">radar</span>
+                        Start Hunt
+                    </button>
+</div>
+</div>
+<!-- Sidebar Footer -->
+<div class="mt-auto p-6 border-t border-border-light dark:border-border-dark">
+<button class="flex w-full items-center justify-center gap-2 text-subtle-green dark:text-gray-400 hover:text-text-main dark:hover:text-white text-sm font-medium transition-colors">
+<span class="material-symbols-outlined text-lg">logout</span>
+                    Log Out
+                </button>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark relative overflow-hidden">
+<!-- Map Section -->
+<div class="h-[55%] w-full relative group">
+<!-- Map Background -->
+<div class="absolute inset-0 bg-gray-200 dark:bg-gray-800" data-alt="Light themed map of Boulder Colorado showing streets and terrain" data-location="Boulder, Colorado" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBfYb3md72GoKauCXV2P6QRc4sxQkM3eaCBxbbxKXwl9ag1T4cP7UKHV49XxuCndkqwFla0z7MR6A9LkgZ-6704mHjD_nHN2G7dBQpDw9qJBSfjo3r59nGHQgfgdnfUxyxq3GR1dnJCQb8Ejrd2Pycg-0qV8Fg3DKYPCAButeSSRbxsBs6jnguD4TL4OdWKSjH8gg6La_U2678yJs0Pz5DtPO7yXG-64_1OZIEjcJVjXP6JUs5w97bZp_dt2KfadRfgzkZxDgUtWsEn'); background-size: cover; background-position: center;">
+<!-- Overlay for dark mode to dim the map slightly if it's too bright, or use a dark map tile in real app -->
+<div class="absolute inset-0 bg-black/5 dark:bg-black/30 pointer-events-none"></div>
+</div>
+<!-- Floating Controls on Map -->
+<div class="absolute top-4 right-4 flex flex-col gap-2">
+<button class="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg text-text-main dark:text-text-light hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors">
+<span class="material-symbols-outlined block">add</span>
+</button>
+<button class="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg text-text-main dark:text-text-light hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors">
+<span class="material-symbols-outlined block">remove</span>
+</button>
+<button class="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg text-text-main dark:text-text-light hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors mt-2">
+<span class="material-symbols-outlined block">layers</span>
+</button>
+</div>
+<!-- Simulated Map Markers -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 size-48 rounded-full border-2 border-primary/30 bg-primary/10 animate-pulse pointer-events-none"></div>
+<!-- Marker 1 -->
+<div class="absolute top-[40%] left-[45%] group/marker cursor-pointer">
+<div class="size-4 bg-primary rounded-full border-2 border-white shadow-lg transform transition-transform group-hover/marker:scale-125"></div>
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-surface-dark px-3 py-1.5 rounded-lg shadow-xl opacity-0 group-hover/marker:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+<p class="text-xs font-bold text-text-main dark:text-text-light">Flagstaff Climb</p>
+<p class="text-[10px] text-subtle-green">5.2km • 8%</p>
+</div>
+</div>
+<!-- Marker 2 -->
+<div class="absolute top-[60%] left-[55%] group/marker cursor-pointer">
+<div class="size-4 bg-primary rounded-full border-2 border-white shadow-lg transform transition-transform group-hover/marker:scale-125"></div>
+<div class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white dark:bg-surface-dark px-3 py-1.5 rounded-lg shadow-xl opacity-0 group-hover/marker:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+<p class="text-xs font-bold text-text-main dark:text-text-light">Sanitas Valley</p>
+<p class="text-[10px] text-subtle-green">2.1km • 4%</p>
+</div>
+</div>
+<!-- Marker 3 -->
+<div class="absolute top-[30%] left-[60%] group/marker cursor-pointer">
+<div class="size-4 bg-primary rounded-full border-2 border-white shadow-lg transform transition-transform group-hover/marker:scale-125"></div>
+</div>
+</div>
+<!-- Data Table Section -->
+<div class="flex-1 overflow-hidden flex flex-col bg-surface-light dark:bg-background-dark border-t border-border-light dark:border-border-dark shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-10 rounded-t-2xl -mt-4 relative">
+<div class="flex items-center justify-between px-6 py-4 border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark sticky top-0 z-20">
+<div class="flex items-center gap-3">
+<h3 class="text-text-main dark:text-text-light text-lg font-bold">Discovered Segments</h3>
+<span class="px-2 py-0.5 rounded-full bg-border-light dark:bg-surface-dark text-xs font-bold text-subtle-green">14 Found</span>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center justify-center size-8 rounded-full hover:bg-border-light dark:hover:bg-surface-dark text-subtle-green transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+</button>
+<button class="flex items-center justify-center size-8 rounded-full hover:bg-border-light dark:hover:bg-surface-dark text-subtle-green transition-colors">
+<span class="material-symbols-outlined text-lg">download</span>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar p-0">
+<table class="w-full text-left border-collapse">
+<thead class="bg-background-light dark:bg-surface-dark/50 sticky top-0 z-10 backdrop-blur-sm">
+<tr>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark w-[35%]">Segment Name</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark text-right">Dist (km)</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark text-right">Elev (m)</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark text-right">Grade</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark">KOM Holder</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark text-right">Time</th>
+<th class="px-6 py-3 text-xs font-semibold text-subtle-green uppercase tracking-wider border-b border-border-light dark:border-border-dark text-center">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-border-light dark:divide-border-dark">
+<!-- Row 1 -->
+<tr class="group hover:bg-primary/5 dark:hover:bg-primary/5 transition-colors cursor-pointer">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-8 bg-primary/20 rounded-full flex items-center justify-center text-primary dark:text-primary">
+<span class="material-symbols-outlined text-sm font-bold">star</span>
+</div>
+<div>
+<p class="text-sm font-bold text-text-main dark:text-text-light group-hover:text-primary transition-colors">Flagstaff Super Climb</p>
+<p class="text-xs text-subtle-green">Boulder, CO</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">5.2</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">340</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">8.1%</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-2">
+<div class="size-6 rounded-full bg-gray-200 bg-cover" data-alt="Small avatar of Sepp Kuss" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCEU3JQwxFWgmvR5HMHyzWbTyCfaIb1UtH8eREaQSmcyzJPVZalqoWe4i7FcVUhgTJFnsk4_qagCtDv7Mj5ZiyMpxtzYMLEanqLi33Dhi2k6ofylvdCz6H4zsxVvLuBTkLswJZZI7GRHrzdTzLk3aboxtKczoPkDAGvLhqXeLwy4727H3-SezFMMjozUQe7DSYKB8Z5TECapoFJXOYrU_n8hjtTDMkFuVe0GyGjJILDgdY0buMirwMq5oyvqezZQfhjm_xPeT_L9gLl');"></div>
+<span class="text-sm text-text-main dark:text-text-light">Sepp Kuss</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-bold">14:22</td>
+<td class="px-6 py-4 whitespace-nowrap text-center">
+<button class="text-subtle-green hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="group hover:bg-primary/5 dark:hover:bg-primary/5 transition-colors cursor-pointer">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-8 bg-border-light dark:bg-surface-dark rounded-full flex items-center justify-center text-subtle-green">
+<span class="material-symbols-outlined text-sm">landscape</span>
+</div>
+<div>
+<p class="text-sm font-bold text-text-main dark:text-text-light group-hover:text-primary transition-colors">Sanitas Valley Sprint</p>
+<p class="text-xs text-subtle-green">Boulder, CO</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">2.1</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">45</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">4.2%</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-2">
+<div class="size-6 rounded-full bg-gray-200 bg-cover" data-alt="Small avatar of random athlete" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA0fUJO-nwD3CEbqlEwOIbvG2BiXYCZpYKNPgS9zXJyZDbaLs8kMat0fi98oOir1f26ktWLWs9B--kDvjWfGHeDWjD0x-6fhAN347VFMt7s5r_zRwcz4VWk55scWKL4Jrh-sIKgMnujbwPMYcSHTXS_s_mDXumcDVUxtyOZJZ5CgoCyC_CskpSn7s9JLTGjEt-Ve2-F5D81H0jfBUQDFKIcXzt7Cr2xYwchsUoSX8kp7Yc_nn49llmCgxlCFH0IFLdtVzPxxXZcz96Z');"></div>
+<span class="text-sm text-text-main dark:text-text-light">Mike Woods</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-bold">03:45</td>
+<td class="px-6 py-4 whitespace-nowrap text-center">
+<button class="text-subtle-green hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="group hover:bg-primary/5 dark:hover:bg-primary/5 transition-colors cursor-pointer">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-8 bg-border-light dark:bg-surface-dark rounded-full flex items-center justify-center text-subtle-green">
+<span class="material-symbols-outlined text-sm">landscape</span>
+</div>
+<div>
+<p class="text-sm font-bold text-text-main dark:text-text-light group-hover:text-primary transition-colors">NCAR Climb</p>
+<p class="text-xs text-subtle-green">Boulder, CO</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">3.8</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">210</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">6.5%</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-2">
+<div class="size-6 rounded-full bg-gray-200 bg-cover" data-alt="Small avatar of random athlete" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC6RMbDzGelBEUYtoyfQo6FtHFGv56vaTKKPNtxvNpvh-RKdwe2st-NF8acnt7YEKFEgrj0zjgktvGZmPQ7Kv2yVyKrvnJZ3kB_USFXJJWufE4smxIBgw7Cr761SQHx6hp6nhqbxG3AyfDDHJVIrz63Wk2DP7Yke76ervvoXYRgmBliEaqvzfwd2ARbMtTiR3fupqGRIYe95BEndhA939ZSCKkpU3Yp_7-9yvVMc-_2k04XXvJAJMU7oKyNx2Vatg9UOi7d7d9U3FJR');"></div>
+<span class="text-sm text-text-main dark:text-text-light">Annemiek van Vleuten</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-bold">11:02</td>
+<td class="px-6 py-4 whitespace-nowrap text-center">
+<button class="text-subtle-green hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">visibility</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="group hover:bg-primary/5 dark:hover:bg-primary/5 transition-colors cursor-pointer">
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-3">
+<div class="flex-shrink-0 size-8 bg-border-light dark:bg-surface-dark rounded-full flex items-center justify-center text-subtle-green">
+<span class="material-symbols-outlined text-sm">landscape</span>
+</div>
+<div>
+<p class="text-sm font-bold text-text-main dark:text-text-light group-hover:text-primary transition-colors">Sunshine Canyon</p>
+<p class="text-xs text-subtle-green">Boulder, CO</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">14.5</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">680</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-medium">5.8%</td>
+<td class="px-6 py-4 whitespace-nowrap">
+<div class="flex items-center gap-2">
+<div class="size-6 rounded-full bg-gray-200 bg-cover" data-alt="Small avatar of random athlete" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBRjaBBs8ARXiZ4APSOLxBTuixHF8TbWP8vhut16KRMnz4nLV1Vza28yXWdFpKrJj7qK2GayogZu84rR2eLkuEgTREnDjeKVpCSEYtMCcAtClCvkuuUHSwwB_H--3p1ZSg4CxowblGUPam2n94qlHbDdKRQxCUikcMR-rkgB4ga-P2uJmEnRLMValyxaCmNo2Gx0Vkoq5z_Ntyb3IB172-Z8-7FAjYc8O36ygzZ6yQP0haWfFo6kK2gphuAJpKXho1hwC4yyln_r1ym');"></div>
+<span class="text-sm text-text-main dark:text-text-light">Peter Sagan</span>
+</div>
+</td>
+<td class="px-6 py-4 whitespace-nowrap text-sm text-text-main dark:text-text-light text-right font-bold">42:15</td>
+<td class="px-6 py-4 whitespace-nowrap text-center">
+<button class="text-subtle-green hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-lg">visibility</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</main>
+</div>
+</body></html>
