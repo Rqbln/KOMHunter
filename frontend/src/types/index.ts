@@ -19,11 +19,11 @@ export interface SegmentSummary {
 }
 
 export interface KOMData {
-  athlete_name: string;
-  elapsed_time: number;
-  elapsed_time_formatted?: string;
-  start_date?: string;
-  athlete_id?: number;
+  kom_time?: string;
+  qom_time?: string;
+  overall_time?: string;
+  local_legend_name?: string;
+  local_legend_efforts?: string;
 }
 
 export interface SegmentDetails extends SegmentSummary {

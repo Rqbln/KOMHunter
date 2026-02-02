@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export function Header({ className }: HeaderProps) {
-  const { athlete, isAuthenticated, logout } = useStrava();
+  const { athlete, isAuthenticated, login, logout } = useStrava();
 
   return (
     <header
@@ -64,12 +64,10 @@ export function Header({ className }: HeaderProps) {
           </div>
         ) : (
           <button
-            onClick={() => {
-              /* Will be connected to login */
-            }}
+            onClick={login}
             className="px-4 py-2 bg-primary text-black rounded-full font-bold text-sm hover:bg-primary-hover transition-colors"
           >
-            Log In
+            Log In with Strava
           </button>
         )}
       </div>

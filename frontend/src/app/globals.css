@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Leaflet CSS */
+@import "leaflet/dist/leaflet.css";
+
 /* KOMHunter Theme Colors */
 :root {
   /* Primary */
