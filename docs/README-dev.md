@@ -1,130 +1,168 @@
 # KOMHunter - Development Setup
 
-## Prerequisites
+## Prérequis
 
-- Python 3.11+
-- Node.js 22+
-- npm
-- Strava API credentials
+- **Python 3.11+** (backend)
+- **Bun** (frontend — [installer Bun](https://bun.sh))
+- **Credentials Strava** (voir plus bas)
 
-## Backend Setup
+## Lancer l’application facilement
 
-1. **Create virtual environment**:
+### Option 1 : Deux terminaux (recommandé en dev)
+
+**Terminal 1 – Backend :**
+```bash
+cd backend
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env      # puis éditer .env avec tes identifiants Strava
+uvicorn app.main:app --reload --port 8000
+```
+
+**Terminal 2 – Frontend :**
+```bash
+cd frontend
+bun install
+cp .env.example .env.local   # optionnel, défaut: http://localhost:8000
+bun run dev
+```
+
+Ouvre **http://localhost:3000** dans le navigateur. L’API tourne sur **http://localhost:8000** (docs : http://localhost:8000/docs).
+
+### Option 2 : Makefile (à la racine du repo)
+
+```bash
+make install   # installe backend + frontend (une fois)
+make dev       # affiche les commandes à lancer dans 2 terminaux
+make dev-backend   # lance uniquement le backend
+make dev-frontend  # lance uniquement le frontend
+```
+
+### Option 3 : Docker
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env.local
+docker-compose up -d
+```
+
+App : http://localhost:3000 — API : http://localhost:8000
+
+---
+
+## Backend (détail)
+
+1. **Environnement virtuel :**
    ```bash
    cd backend
    python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   source venv/bin/activate  # Windows: venv\Scripts\activate
    ```
 
-2. **Install dependencies**:
+2. **Dépendances :**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Configure environment**:
+3. **Configuration :**
    ```bash
    cp .env.example .env
-   # Edit .env with your Strava credentials
+   # Éditer .env avec les identifiants Strava
    ```
 
-4. **Run the server**:
+4. **Lancer le serveur :**
    ```bash
    uvicorn app.main:app --reload --port 8000
    ```
 
-5. **Run tests**:
+5. **Tests :**
    ```bash
    pytest tests/ -v
    ```
 
-## Frontend Setup
+## Frontend (Bun)
 
-1. **Install dependencies**:
+1. **Dépendances :**
    ```bash
    cd frontend
-   npm install
+   bun install
    ```
+   Après le premier `bun install`, tu peux committer `bun.lockb` pour des builds reproductibles.
 
-2. **Configure environment**:
+2. **Configuration :**
    ```bash
    cp .env.example .env.local
-   # Default API URL is http://localhost:8000
+   # NEXT_PUBLIC_API_URL par défaut: http://localhost:8000
    ```
 
-3. **Run development server**:
+3. **Dev :**
    ```bash
-   npm run dev
+   bun run dev
    ```
 
-4. **Build for production**:
+4. **Build production :**
    ```bash
-   npm run build
+   bun run build
+   bun run start
    ```
 
-## Docker Setup
-
-Run both services with Docker Compose:
+## Docker
 
 ```bash
-# Copy environment files
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
-
-# Start services
 docker-compose up -d
-
-# View logs
 docker-compose logs -f
 ```
 
-## API Documentation
+## API
 
-Once the backend is running, access:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+Une fois le backend lancé :
 
-## Project Structure
+- **Swagger :** http://localhost:8000/docs  
+- **ReDoc :** http://localhost:8000/redoc  
+
+## Structure du projet
 
 ```
 komhunter/
 ├── backend/
 │   ├── app/
-│   │   ├── api/routes/      # FastAPI endpoints
-│   │   ├── services/        # Business logic
-│   │   ├── models/          # Pydantic schemas
-│   │   └── utils/           # Helpers
-│   └── tests/               # pytest tests
-├── frontend/
+│   │   ├── api/routes/   # endpoints FastAPI
+│   │   ├── services/     # logique métier
+│   │   ├── models/       # schémas Pydantic
+│   │   └── utils/
+│   └── tests/
+├── frontend/             # Next.js (Bun)
 │   └── src/
-│       ├── app/             # Next.js pages
-│       ├── components/      # React components
-│       ├── hooks/           # Custom hooks
-│       └── lib/             # Utilities
+│       ├── app/
+│       ├── components/
+│       ├── hooks/
+│       └── lib/
 └── docs/
-    ├── ARCHITECTURE.md      # Project architecture
-    └── VALIDATION.md        # Validation results
 ```
 
-## Environment Variables
+## Variables d’environnement
 
-### Backend (.env)
-
-| Variable | Description |
-|----------|-------------|
-| `STRAVA_CLIENT_ID` | Strava API client ID |
-| `STRAVA_CLIENT_SECRET` | Strava API secret |
-| `STRAVA_REDIRECT_URI` | OAuth callback URL |
-| `JWT_SECRET_KEY` | Secret for JWT tokens |
-
-### Frontend (.env.local)
+### Backend (`.env`)
 
 | Variable | Description |
 |----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL |
+| `STRAVA_CLIENT_ID` | Client ID Strava |
+| `STRAVA_CLIENT_SECRET` | Client secret Strava |
+| `STRAVA_REDIRECT_URI` | URL de callback OAuth |
+| `JWT_SECRET_KEY` | Clé secrète JWT |
 
-## Getting Strava Credentials
+### Frontend (`.env.local`)
 
-1. Go to https://www.strava.com/settings/api
-2. Create an application
-3. Copy Client ID and Client Secret
-4. Set Callback Domain to `localhost`
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | URL de l’API backend |
+
+## Obtenir les identifiants Strava
+
+1. Aller sur https://www.strava.com/settings/api  
+2. Créer une application  
+3. Récupérer Client ID et Client Secret  
+4. Définir le domaine de callback sur `localhost`  

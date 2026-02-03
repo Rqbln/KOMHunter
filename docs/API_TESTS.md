@@ -124,13 +124,84 @@ score = (slope + 1) * speed_factor * distance_factor
       = 12.37
 ```
 
+### 6. Athlete Stats
+```bash
+GET /api/athletes/me/stats
+Authorization: Bearer <token>
+```
+**Résultat**: ✅ Succès
+```json
+{
+    "biggest_ride_distance": 176498.0,
+    "biggest_climb_elevation_gain": 930.2,
+    "recent_run_totals": {"count": 20, "distance": 198287.5, ...},
+    "all_ride_totals": {"count": 66, "distance": 3737743.5, ...}
+}
+```
+
+### 7. Athlete KOMs
+```bash
+GET /api/athletes/me/koms?per_page=5
+Authorization: Bearer <token>
+```
+**Résultat**: ✅ Succès
+```json
+{
+    "koms": [{
+        "segment_id": 33816933,
+        "segment_name": "Escaliers de la forêt : montée",
+        "elapsed_time_formatted": "1:40",
+        "kom_rank": 2
+    }],
+    "total_count": 1
+}
+```
+
+### 8. Starred Segments
+```bash
+GET /api/athletes/me/starred?per_page=5
+Authorization: Bearer <token>
+```
+**Résultat**: ✅ Succès
+```json
+{
+    "segments": [{
+        "id": 18789373,
+        "name": "Côte de La Celle-les-Bordes",
+        "athlete_pr_effort": {...}
+    }],
+    "total_count": 2
+}
+```
+
+## Tests Frontend (MCP Chrome)
+
+### Segment Detail Panel
+- ✅ Clic sur segment → Panneau de détails s'ouvre
+- ✅ Affichage KOM (1:31) et QOM (1:53) 
+- ✅ Légende Locale affichée (Jean-luc Almansa)
+- ✅ Breakdown de difficulté:
+  - Score Global: 56.8 (Difficile)
+  - Difficulté Physique: 3.8
+  - Prestige: 86.6
+  - Compétitivité: 100.0
+  - Score Catégorie Strava: 5,026 pts
+- ✅ Statistiques (7,635 efforts, 3,474 athlètes, 460 favoris)
+- ✅ Bouton "Voir sur Strava" fonctionnel
+
+### User Dashboard
+- ✅ Authentification avec token Strava
+- ✅ Profil utilisateur affiché (Robin Quériaux)
+- ✅ Onglets Stats/KOMs/PRs/Favoris
+
 ## Prochaines Étapes
 
 1. ✅ **OAuth Flow Complet**: Token obtenu avec tous les scopes
-2. ✅ **Tests avec Données Réelles**: KOM/QOM validés (Côte de Montmartre: KOM 1:31, QOM 1:53)
-3. **Rate Limiting**: Respecter 100 req/15min et 1000 req/jour
-4. **Caching**: Mettre en cache les résultats de geocoding et segments
-5. **Frontend Integration**: Connecter le frontend Next.js à l'API
+2. ✅ **Tests avec Données Réelles**: KOM/QOM validés
+3. ✅ **Segment Detail Panel**: Implémenté avec breakdown difficulté
+4. ✅ **User Dashboard**: Stats, KOMs, PRs, Favoris
+5. **Rate Limiting**: Respecter 100 req/15min et 1000 req/jour
+6. **Caching**: Mettre en cache les résultats de geocoding et segments
 
 ## Tokens de Test
 

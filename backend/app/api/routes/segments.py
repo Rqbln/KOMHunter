@@ -1,6 +1,7 @@
 """
 Segment exploration and details endpoints.
 """
+import re
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -10,12 +11,43 @@ from app.models.segment import (
     SegmentExploreResponse,
     SegmentDetails,
     SegmentSummary,
+    DifficultyBreakdown,
+    KOMData,
 )
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
 from app.api.dependencies import get_strava_api_service, get_scoring_service
 
 router = APIRouter()
+
+
+def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
+    """
+    Parse a time string (mm:ss or hh:mm:ss) to seconds.
+    
+    Args:
+        time_str: Time string like "14:22" or "1:14:22"
+        
+    Returns:
+        Time in seconds, or None if parsing fails
+    """
+    if not time_str:
+        return None
+    
+    try:
+        # Handle formats like "14:22" or "1:14:22"
+        parts = time_str.strip().split(":")
+        if len(parts) == 2:
+            # mm:ss format
+            minutes, seconds = int(parts[0]), int(parts[1])
+            return minutes * 60 + seconds
+        elif len(parts) == 3:
+            # hh:mm:ss format
+            hours, minutes, seconds = int(parts[0]), int(parts[1]), int(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        return None
+    except (ValueError, IndexError):
+        return None
 
 
 @router.post("/explore", response_model=SegmentExploreResponse)
@@ -106,54 +138,92 @@ async def get_segment_details(
     """
     Get detailed information about a specific segment.
     
-    Returns segment details including the polyline for map display
-    and KOM/QOM information from the xoms field.
+    Returns segment details including:
+    - Polyline for map display
+    - KOM/QOM information from the xoms field
+    - Full difficulty breakdown using the unified formula
     """
     try:
         # Get segment details from Strava
         segment_data = await strava_service.get_segment_details(segment_id)
         
         # Extract KOM/QOM data from xoms field
-        kom_data = None
         xoms = segment_data.get("xoms", {})
         local_legend = segment_data.get("local_legend", {})
         
-        if xoms or local_legend:
-            kom_data = {
-                "kom_time": xoms.get("kom"),
-                "qom_time": xoms.get("qom"),
-                "overall_time": xoms.get("overall"),
-                "local_legend_name": local_legend.get("title") if local_legend else None,
-                "local_legend_efforts": local_legend.get("effort_description") if local_legend else None,
-            }
+        # Parse KOM time to seconds for scoring
+        kom_time_str = xoms.get("kom") if xoms else None
+        qom_time_str = xoms.get("qom") if xoms else None
+        kom_time_seconds = parse_time_to_seconds(kom_time_str)
+        qom_time_seconds = parse_time_to_seconds(qom_time_str)
         
-        # Calculate difficulty
-        difficulty = scoring_service.compute_difficulty(
-            distance_m=segment_data.get("distance", 0),
-            elevation_gain=segment_data.get("total_elevation_gain", 0),
-            avg_grade=segment_data.get("average_grade", 0),
+        # Build KOM data object
+        kom_data = None
+        if xoms or local_legend:
+            kom_data = KOMData(
+                kom_time=kom_time_str,
+                qom_time=qom_time_str,
+                overall_time=xoms.get("overall") if xoms else None,
+                kom_time_seconds=kom_time_seconds,
+                qom_time_seconds=qom_time_seconds,
+                local_legend_name=local_legend.get("title") if local_legend else None,
+                local_legend_efforts=local_legend.get("effort_description") if local_legend else None,
+            )
+        
+        # Extract segment data for scoring
+        distance_m = segment_data.get("distance", 0)
+        elevation_gain = segment_data.get("total_elevation_gain", 0)
+        avg_grade = segment_data.get("average_grade", 0)
+        max_grade = segment_data.get("maximum_grade", 0)
+        elev_high = segment_data.get("elevation_high", 0)
+        effort_count = segment_data.get("effort_count", 0)
+        athlete_count = segment_data.get("athlete_count", 0)
+        
+        # Calculate full difficulty breakdown using the unified formula
+        difficulty_result = scoring_service.compute_full_score(
+            distance_m=distance_m,
+            elevation_gain=elevation_gain,
+            avg_grade=avg_grade,
+            max_grade=max_grade,
+            elev_high=elev_high,
+            effort_count=effort_count,
+            athlete_count=athlete_count,
+            kom_time_seconds=kom_time_seconds,
+        )
+        
+        # Create DifficultyBreakdown object
+        difficulty_breakdown = DifficultyBreakdown(
+            raw_score=difficulty_result["raw_score"],
+            normalized_score=difficulty_result["normalized_score"],
+            category=difficulty_result["category"],
+            physical_score=difficulty_result["physical_score"],
+            prestige_score=difficulty_result["prestige_score"],
+            competitiveness_score=difficulty_result["competitiveness_score"],
+            strava_category_points=difficulty_result["strava_category_points"],
+            weights_used=difficulty_result.get("weights_used"),
         )
         
         return SegmentDetails(
             id=segment_data["id"],
             name=segment_data["name"],
-            distance=segment_data.get("distance", 0),
-            avg_grade=segment_data.get("average_grade", 0),
-            max_grade=segment_data.get("maximum_grade", 0),
-            elev_high=segment_data.get("elevation_high", 0),
+            distance=distance_m,
+            avg_grade=avg_grade,
+            max_grade=max_grade,
+            elev_high=elev_high,
             elev_low=segment_data.get("elevation_low", 0),
-            total_elevation_gain=segment_data.get("total_elevation_gain", 0),
+            total_elevation_gain=elevation_gain,
             start_latlng=segment_data.get("start_latlng", [0, 0]),
             end_latlng=segment_data.get("end_latlng", [0, 0]),
             climb_category=segment_data.get("climb_category", 0),
             city=segment_data.get("city", ""),
             state=segment_data.get("state", ""),
             country=segment_data.get("country", ""),
-            effort_count=segment_data.get("effort_count", 0),
-            athlete_count=segment_data.get("athlete_count", 0),
+            effort_count=effort_count,
+            athlete_count=athlete_count,
             star_count=segment_data.get("star_count", 0),
             polyline=segment_data.get("map", {}).get("polyline", ""),
-            difficulty_score=difficulty,
+            difficulty_score=difficulty_result["normalized_score"],
+            difficulty_breakdown=difficulty_breakdown,
             kom=kom_data,
         )
         

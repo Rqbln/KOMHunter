@@ -7,6 +7,7 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Query, Response, Depends
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 
 from app.config import get_settings
 from app.models.auth import TokenResponse, AuthState
@@ -79,9 +80,14 @@ async def callback(
         raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
 
 
+class RefreshTokenRequest(BaseModel):
+    """Request body for token refresh."""
+    refresh_token: str
+
+
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    refresh_token: str,
+    request: RefreshTokenRequest,
     auth_service: StravaAuthService = Depends(get_strava_auth_service),
 ) -> TokenResponse:
     """
@@ -90,10 +96,10 @@ async def refresh_token(
     Returns a new access token and optionally a new refresh token.
     """
     try:
-        token_data = await auth_service.refresh_access_token(refresh_token)
+        token_data = await auth_service.refresh_access_token(request.refresh_token)
         return TokenResponse(
             access_token=token_data["access_token"],
-            refresh_token=token_data.get("refresh_token", refresh_token),
+            refresh_token=token_data.get("refresh_token", request.refresh_token),
             expires_at=token_data["expires_at"],
             token_type="Bearer",
         )

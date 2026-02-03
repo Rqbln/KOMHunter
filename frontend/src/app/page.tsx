@@ -8,19 +8,24 @@ import { useState, useCallback } from "react";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
+import { UserDashboard } from "@/components/dashboard/UserDashboard";
 import { useSegments } from "@/hooks";
 import type { HuntParameters } from "@/types";
 
 export default function HomePage() {
   const [huntParams, setHuntParams] = useState<HuntParameters | null>(null);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  
   const {
     segments,
     selectedSegment,
     isLoading,
+    isLoadingDetails,
     error,
     totalCount,
     explore,
     selectSegment,
+    clearSelection,
   } = useSegments();
 
   const handleStartHunt = useCallback(
@@ -38,10 +43,18 @@ export default function HomePage() {
     [selectSegment]
   );
 
+  const handleOpenDashboard = useCallback(() => {
+    setIsDashboardOpen(true);
+  }, []);
+
+  const handleCloseDashboard = useCallback(() => {
+    setIsDashboardOpen(false);
+  }, []);
+
   return (
     <>
       {/* Header */}
-      <Header />
+      <Header onOpenDashboard={handleOpenDashboard} />
 
       {/* Main Layout */}
       <div className="flex flex-1 overflow-hidden">
@@ -56,9 +69,17 @@ export default function HomePage() {
           centerLon={huntParams?.longitude ?? 2.3522}
           radiusKm={huntParams?.radiusKm ?? 10}
           isLoading={isLoading}
+          isLoadingDetails={isLoadingDetails}
           onSegmentSelect={handleSegmentSelect}
+          onClearSelection={clearSelection}
         />
       </div>
+
+      {/* User Dashboard */}
+      <UserDashboard 
+        isOpen={isDashboardOpen} 
+        onClose={handleCloseDashboard} 
+      />
 
       {/* Error Toast */}
       {error && (

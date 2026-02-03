@@ -8,9 +8,10 @@ import { useStrava } from "@/hooks";
 
 interface HeaderProps {
   className?: string;
+  onOpenDashboard?: () => void;
 }
 
-export function Header({ className }: HeaderProps) {
+export function Header({ className, onOpenDashboard }: HeaderProps) {
   const { athlete, isAuthenticated, login, logout } = useStrava();
 
   return (
@@ -44,7 +45,10 @@ export function Header({ className }: HeaderProps) {
 
         {/* User info */}
         {isAuthenticated && athlete ? (
-          <div className="flex items-center gap-3 pl-4 border-l border-border">
+          <button 
+            onClick={onOpenDashboard}
+            className="flex items-center gap-3 pl-4 border-l border-border hover:opacity-80 transition-opacity"
+          >
             <div
               className="bg-center bg-no-repeat bg-cover rounded-full size-10 border-2 border-primary"
               style={{
@@ -53,7 +57,7 @@ export function Header({ className }: HeaderProps) {
                   : undefined,
               }}
             />
-            <div className="hidden lg:block">
+            <div className="hidden lg:block text-left">
               <p className="text-sm font-bold leading-tight">
                 {athlete.firstname} {athlete.lastname}
               </p>
@@ -61,7 +65,8 @@ export function Header({ className }: HeaderProps) {
                 {athlete.premium ? "Pro Member" : "Member"}
               </p>
             </div>
-          </div>
+            <span className="material-symbols-outlined text-subtle-green">chevron_right</span>
+          </button>
         ) : (
           <button
             onClick={login}

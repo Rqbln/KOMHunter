@@ -36,10 +36,11 @@ export function useStrava(): UseStravaReturn {
           return;
         }
 
-        // Parse token to check expiration
+        // Parse token to check expiration (only for JWT tokens)
         const payload = parseJwt(token);
-        if (!payload || isTokenExpired(payload.exp as number)) {
-          // Try to refresh token
+        
+        // If token is a JWT and expired, try to refresh
+        if (payload && isTokenExpired(payload.exp as number)) {
           const refreshToken = localStorage.getItem("kom_refresh_token");
           if (refreshToken) {
             try {
@@ -63,12 +64,16 @@ export function useStrava(): UseStravaReturn {
           }
         }
 
-        // Fetch athlete profile
+        // Fetch athlete profile to validate token
+        // This works for both JWT tokens and raw Strava access tokens
         const profile = await athletes.getProfile();
         setAthlete(profile);
         setIsAuthenticated(true);
       } catch (err) {
         console.error("Auth check failed:", err);
+        // Token might be invalid, clear it
+        localStorage.removeItem("kom_token");
+        localStorage.removeItem("kom_refresh_token");
         setError(err instanceof Error ? err.message : "Authentication failed");
         setIsAuthenticated(false);
       } finally {

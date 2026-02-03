@@ -150,6 +150,12 @@ dmypy.json
 # pytype static type analyzer
 .pytype/
 
+# Makefile start/stop (PID + logs)
+.backend.pid
+.frontend.pid
+.backend.log
+.frontend.log
+
 # Cython debug symbols
 cython_debug/
 

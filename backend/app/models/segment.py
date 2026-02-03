@@ -13,6 +13,44 @@ class ActivityType(str, Enum):
     RUN = "running"
 
 
+class DifficultyBreakdown(BaseModel):
+    """
+    Detailed breakdown of segment difficulty using the unified formula.
+    
+    D_reel = w1 × S_phys + w2 × I_prestige + w3 × F_comp
+    """
+    
+    raw_score: float = Field(..., description="Raw difficulty score")
+    normalized_score: float = Field(..., description="Normalized score (0-100)")
+    category: str = Field(..., description="Difficulty category (easy/moderate/hard/expert)")
+    physical_score: float = Field(..., description="Physical difficulty score (S_phys)")
+    prestige_score: float = Field(..., description="Prestige/popularity score (I_prestige)")
+    competitiveness_score: float = Field(..., description="Competitiveness score (F_comp)")
+    strava_category_points: int = Field(0, description="Strava category score (length × grade)")
+    weights_used: Optional[Dict[str, float]] = Field(
+        None, 
+        description="Weights used for calculation"
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "raw_score": 52.3,
+                "normalized_score": 52.3,
+                "category": "moderate",
+                "physical_score": 45.0,
+                "prestige_score": 58.2,
+                "competitiveness_score": 55.0,
+                "strava_category_points": 42120,
+                "weights_used": {
+                    "physical": 0.4,
+                    "prestige": 0.35,
+                    "competitiveness": 0.25
+                }
+            }
+        }
+
+
 class SegmentSummary(BaseModel):
     """Summary information about a segment from exploration."""
     
@@ -48,6 +86,8 @@ class KOMData(BaseModel):
     kom_time: Optional[str] = Field(None, description="KOM time formatted (mm:ss)")
     qom_time: Optional[str] = Field(None, description="QOM time formatted (mm:ss)")
     overall_time: Optional[str] = Field(None, description="Overall best time formatted (mm:ss)")
+    kom_time_seconds: Optional[int] = Field(None, description="KOM time in seconds")
+    qom_time_seconds: Optional[int] = Field(None, description="QOM time in seconds")
     local_legend_name: Optional[str] = Field(None, description="Local legend athlete name")
     local_legend_efforts: Optional[str] = Field(None, description="Local legend effort count")
 
@@ -74,7 +114,11 @@ class SegmentDetails(BaseModel):
     star_count: int = Field(0, description="Number of stars/favorites")
     polyline: str = Field("", description="Encoded polyline for map display")
     difficulty_score: float = Field(0, description="Calculated difficulty score")
-    kom: Optional[Dict[str, Any]] = Field(None, description="KOM/QOM data")
+    difficulty_breakdown: Optional[DifficultyBreakdown] = Field(
+        None, 
+        description="Detailed difficulty breakdown"
+    )
+    kom: Optional[KOMData] = Field(None, description="KOM/QOM data")
     
     class Config:
         json_schema_extra = {
@@ -97,11 +141,23 @@ class SegmentDetails(BaseModel):
                 "athlete_count": 4521,
                 "star_count": 892,
                 "polyline": "encoded_polyline_string",
-                "difficulty_score": 42.5,
+                "difficulty_score": 52.3,
+                "difficulty_breakdown": {
+                    "raw_score": 52.3,
+                    "normalized_score": 52.3,
+                    "category": "moderate",
+                    "physical_score": 45.0,
+                    "prestige_score": 58.2,
+                    "competitiveness_score": 55.0,
+                    "strava_category_points": 42120,
+                },
                 "kom": {
-                    "athlete_name": "Sepp Kuss",
-                    "elapsed_time": 862,
-                    "elapsed_time_formatted": "14:22",
+                    "kom_time": "14:22",
+                    "qom_time": "16:45",
+                    "overall_time": "14:22",
+                    "kom_time_seconds": 862,
+                    "local_legend_name": "Local Hero",
+                    "local_legend_efforts": "52 efforts",
                 },
             }
         }

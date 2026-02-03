@@ -200,3 +200,172 @@ class StravaAPIService:
             f"/segments/{segment_id}/all_efforts",
             params=params,
         )
+    
+    async def get_athlete_stats(self, athlete_id: int) -> Dict[str, Any]:
+        """
+        Get statistics for an athlete.
+        
+        Args:
+            athlete_id: Strava athlete ID
+            
+        Returns:
+            Athlete statistics including totals and records
+        """
+        return await self._request("GET", f"/athletes/{athlete_id}/stats")
+    
+    async def list_athlete_koms(
+        self,
+        athlete_id: int,
+        page: int = 1,
+        per_page: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get KOMs/QOMs for an athlete.
+        
+        Args:
+            athlete_id: Strava athlete ID
+            page: Page number (1-indexed)
+            per_page: Number of results per page
+            
+        Returns:
+            List of segment efforts where athlete holds KOM/QOM
+        """
+        params = {"page": page, "per_page": per_page}
+        
+        koms = await self._request(
+            "GET",
+            f"/athletes/{athlete_id}/koms",
+            params=params,
+        )
+        
+        # Format times in results
+        if isinstance(koms, list):
+            for entry in koms:
+                if "elapsed_time" in entry:
+                    entry["elapsed_time_formatted"] = format_seconds_to_time(
+                        entry["elapsed_time"]
+                    )
+        
+        return koms
+    
+    async def list_starred_segments(
+        self,
+        page: int = 1,
+        per_page: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get the authenticated athlete's starred segments.
+        
+        Args:
+            page: Page number (1-indexed)
+            per_page: Number of results per page
+            
+        Returns:
+            List of starred segments
+        """
+        params = {"page": page, "per_page": per_page}
+        
+        return await self._request(
+            "GET",
+            "/segments/starred",
+            params=params,
+        )
+    
+    async def list_athlete_activities(
+        self,
+        page: int = 1,
+        per_page: int = 30,
+        after: Optional[int] = None,
+        before: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get the authenticated athlete's activities.
+        
+        Args:
+            page: Page number (1-indexed)
+            per_page: Number of results per page
+            after: Epoch timestamp to filter activities after
+            before: Epoch timestamp to filter activities before
+            
+        Returns:
+            List of activities
+        """
+        params = {"page": page, "per_page": per_page}
+        if after:
+            params["after"] = after
+        if before:
+            params["before"] = before
+        
+        return await self._request(
+            "GET",
+            "/athlete/activities",
+            params=params,
+        )
+    
+    async def get_activity_segment_efforts(
+        self,
+        activity_id: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get segment efforts from a specific activity.
+        
+        Args:
+            activity_id: Strava activity ID
+            
+        Returns:
+            List of segment efforts from the activity
+        """
+        activity = await self._request("GET", f"/activities/{activity_id}")
+        
+        # Extract segment efforts from activity
+        segment_efforts = activity.get("segment_efforts", [])
+        
+        # Format times in results
+        for effort in segment_efforts:
+            if "elapsed_time" in effort:
+                effort["elapsed_time_formatted"] = format_seconds_to_time(
+                    effort["elapsed_time"]
+                )
+        
+        return segment_efforts
+    
+    async def get_athlete_segment_efforts(
+        self,
+        segment_id: int,
+        start_date_local: Optional[str] = None,
+        end_date_local: Optional[str] = None,
+        per_page: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get the authenticated athlete's efforts on a specific segment.
+        
+        Args:
+            segment_id: Strava segment ID
+            start_date_local: ISO 8601 formatted date string
+            end_date_local: ISO 8601 formatted date string
+            per_page: Number of results per page
+            
+        Returns:
+            List of segment efforts by the authenticated athlete
+        """
+        params = {"segment_id": segment_id, "per_page": per_page}
+        if start_date_local:
+            params["start_date_local"] = start_date_local
+        if end_date_local:
+            params["end_date_local"] = end_date_local
+        
+        efforts = await self._request(
+            "GET",
+            "/segment_efforts",
+            params=params,
+        )
+        
+        # Format times in results
+        if isinstance(efforts, list):
+            for effort in efforts:
+                if "elapsed_time" in effort:
+                    effort["elapsed_time_formatted"] = format_seconds_to_time(
+                        effort["elapsed_time"]
+                    )
+        
+        return efforts
