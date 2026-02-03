@@ -6,9 +6,9 @@ FROM oven/bun:1-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
-# package.json required; bun.lockb optional (commit after `bun install` for reproducible builds)
-COPY package.json bun.lockb* ./
-RUN if [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
+# package.json required; bun.lock / bun.lockb optional (commit after `bun install` for reproducible builds)
+COPY package.json bun.lock* bun.lockb* ./
+RUN if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
 
 # Rebuild the source code only when needed
 FROM base AS builder

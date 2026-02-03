@@ -2,7 +2,7 @@
 # Usage: make [cible]
 
 .PHONY: install install-backend install-frontend dev dev-backend dev-frontend help
-.PHONY: start-backend start-frontend stop-backend stop-frontend reboot
+.PHONY: start-backend start-frontend stop stop-backend stop-frontend reboot
 .PHONY: docker-up docker-down
 
 # PIDs / logs (à la racine du repo)
@@ -10,6 +10,7 @@ BACKEND_PID  := .backend.pid
 FRONTEND_PID := .frontend.pid
 BACKEND_LOG  := .backend.log
 FRONTEND_LOG := .frontend.log
+BUN_BIN      := $(HOME)/.bun/bin
 
 help:
 	@echo "KOMHunter - Commandes disponibles:"
@@ -22,6 +23,7 @@ help:
 	@echo "  Démarrer / Arrêter (processus en arrière-plan):"
 	@echo "    make start-backend    Démarrer le backend (port 8000)"
 	@echo "    make start-frontend  Démarrer le frontend (port 3000)"
+	@echo "    make stop             Arrêter backend + frontend"
 	@echo "    make stop-backend    Arrêter le backend"
 	@echo "    make stop-frontend   Arrêter le frontend"
 	@echo "    make reboot          Arrêter front+back puis redémarrer les deux"
@@ -45,7 +47,7 @@ install-backend:
 
 install-frontend:
 	@echo ">>> Frontend: bun install..."
-	cd frontend && bun install
+	@export PATH="$(BUN_BIN):$$PATH"; cd frontend && bun install
 	@echo ">>> Frontend: optionnel — copiez frontend/.env.example vers frontend/.env.local"
 
 # --- Start / Stop (processus en arrière-plan) ---
@@ -60,9 +62,9 @@ start-backend:
 
 start-frontend:
 	@if lsof -ti:3000 >/dev/null 2>&1; then echo ">>> Frontend déjà en cours sur le port 3000."; exit 1; fi
-	@command -v bun >/dev/null 2>&1 || { echo ">>> Bun non trouvé. Installez: https://bun.sh"; exit 1; }
+	@export PATH="$(BUN_BIN):$$PATH"; command -v bun >/dev/null 2>&1 || { echo ">>> Bun non trouvé. Installez: https://bun.sh"; exit 1; }
 	@echo ">>> Démarrage du frontend (port 3000)..."
-	@cd frontend && nohup bun run dev >> ../$(FRONTEND_LOG) 2>&1 & echo $$! > ../$(FRONTEND_PID)
+	@export PATH="$(BUN_BIN):$$PATH"; cd frontend && nohup bun run dev >> ../$(FRONTEND_LOG) 2>&1 & echo $$! > ../$(FRONTEND_PID)
 	@sleep 3
 	@if lsof -ti:3000 >/dev/null 2>&1; then echo ">>> Frontend démarré. Logs: $(FRONTEND_LOG)"; else echo ">>> Erreur au démarrage, voir $(FRONTEND_LOG)"; exit 1; fi
 
@@ -83,6 +85,9 @@ stop-frontend:
 	else \
 		echo ">>> Aucun frontend en cours sur le port 3000."; \
 	fi
+
+stop: stop-backend stop-frontend
+	@echo ">>> Tout arrêté."
 
 reboot: stop-backend stop-frontend
 	@echo ">>> Redémarrage backend + frontend..."
@@ -107,7 +112,7 @@ dev-backend:
 	cd backend && ./venv/bin/uvicorn app.main:app --reload --port 8000
 
 dev-frontend:
-	cd frontend && bun run dev
+	@export PATH="$(BUN_BIN):$$PATH"; cd frontend && bun run dev
 
 docker-up:
 	docker-compose up -d
