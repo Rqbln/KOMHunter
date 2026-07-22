@@ -1,7 +1,7 @@
 """
 Pydantic models for Strava segments.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -68,6 +68,25 @@ class SegmentSummary(BaseModel):
         None, description="Sport for this segment (riding/running)"
     )
 
+    # --- Optional enrichment (populated only for popularity/competitiveness/
+    # opportunity sorts, which fetch per-segment detail; null otherwise) ---
+    prestige_score: Optional[float] = Field(
+        None, description="Popularity/prestige score 0-100 (higher = more famous)"
+    )
+    competitiveness_score: Optional[float] = Field(
+        None,
+        description="KOM-speed competitiveness 0-100 (lower = slower KOM = easier to win)",
+    )
+    effort_count: Optional[int] = Field(
+        None, description="Total number of efforts (from segment detail)"
+    )
+    athlete_count: Optional[int] = Field(
+        None, description="Number of unique athletes (from segment detail)"
+    )
+    kom_time: Optional[str] = Field(
+        None, description="KOM time formatted mm:ss (from segment detail)"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -81,6 +100,11 @@ class SegmentSummary(BaseModel):
                 "climb_category": 3,
                 "difficulty_score": 42.5,
                 "activity_type": "riding",
+                "prestige_score": 58.2,
+                "competitiveness_score": 55.0,
+                "effort_count": 15234,
+                "athlete_count": 4521,
+                "kom_time": "14:22",
             }
         }
 
@@ -186,6 +210,26 @@ class SegmentExploreRequest(BaseModel):
     )
     max_segments: int = Field(50, ge=1, le=200, description="Maximum segments to return")
 
+    # Result ordering. "difficulty" (default) preserves current behavior.
+    # popularity/competitiveness/opportunity trigger per-segment enrichment.
+    # Any other value is rejected with 422 (Literal validation).
+    sort_by: Literal[
+        "difficulty",
+        "distance",
+        "grade",
+        "popularity",
+        "competitiveness",
+        "opportunity",
+    ] = Field(
+        "difficulty",
+        description=(
+            "Sort order: difficulty (easiest terrain first), distance (shortest "
+            "first), grade (steepest first), popularity (most famous first), "
+            "competitiveness (slowest KOM = easiest to win first), opportunity "
+            "(famous AND winnable first)."
+        ),
+    )
+
     # --- Advanced filters (all optional; omitting keeps current behavior) ---
     min_cat: int = Field(0, ge=0, le=5, description="Minimum Strava climb category")
     max_cat: int = Field(5, ge=0, le=5, description="Maximum Strava climb category")
@@ -210,6 +254,7 @@ class SegmentExploreRequest(BaseModel):
                 "radius_km": 25,
                 "activity_type": "riding",
                 "max_segments": 50,
+                "sort_by": "opportunity",
                 "min_cat": 0,
                 "max_cat": 5,
                 "min_grade": 3.0,

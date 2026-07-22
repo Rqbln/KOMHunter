@@ -14,8 +14,13 @@ import { useCallback, useMemo, useState } from "react";
 import { LocationInput } from "./LocationInput";
 import { SportTypeToggle } from "./SportTypeToggle";
 import { RadiusSlider } from "./RadiusSlider";
+import { SortSelector } from "./SortSelector";
 import { getClimbCategoryLabel } from "@/lib/utils";
-import type { HuntParameters as HuntParamsType, ActivityType } from "@/types";
+import type {
+  HuntParameters as HuntParamsType,
+  ActivityType,
+  SegmentSortBy,
+} from "@/types";
 
 interface AdvancedSearchFormProps {
   onSubmit: (params: HuntParamsType) => void;
@@ -38,6 +43,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
   const [sportType, setSportType] = useState<ActivityType>("riding");
   const [radiusKm, setRadiusKm] = useState(25);
   const [maxSegments, setMaxSegments] = useState(50);
+  const [sortBy, setSortBy] = useState<SegmentSortBy>("difficulty");
 
   // Advanced filters
   const [minCat, setMinCat] = useState(0);
@@ -74,6 +80,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
       sportType,
       radiusKm,
       maxSegments,
+      sortBy,
       minCat,
       maxCat,
       minGrade: toOptionalNumber(minGrade),
@@ -87,6 +94,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
     sportType,
     radiusKm,
     maxSegments,
+    sortBy,
     minCat,
     maxCat,
     minGrade,
@@ -131,6 +139,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
           unit=""
           onChange={setMaxSegments}
         />
+        <SortSelector value={sortBy} onChange={setSortBy} />
       </div>
 
       {/* Advanced filters */}

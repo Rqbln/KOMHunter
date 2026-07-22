@@ -54,6 +54,9 @@ export function useSegments(): UseSegmentsReturn {
         activity_type: params.sportType,
         max_segments: params.maxSegments,
       };
+      // Only forward an ordering when the form picked one; omitted lets the
+      // backend apply its "difficulty" default.
+      if (params.sortBy) request.sort_by = params.sortBy;
 
       const response = await segments.explore(request);
       setSegmentList(response.segments);
