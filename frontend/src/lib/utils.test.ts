@@ -71,6 +71,14 @@ describe("parseJwt", () => {
     expect(parseJwt(token)).toEqual({ sub: "12345", exp: 1234567890 });
   });
 
+  it("decodes a payload whose base64url encoding has stripped its padding", () => {
+    // {"a":1} is 7 bytes, so its base64 ends in "==" which base64url strips;
+    // parseJwt must restore the padding before calling atob.
+    const token = makeJwt({ a: 1 });
+    expect(token.split(".")[1].length % 4).not.toBe(0); // guard: really unpadded
+    expect(parseJwt(token)).toEqual({ a: 1 });
+  });
+
   it("returns null for garbage input", () => {
     expect(parseJwt("not-a-jwt")).toBeNull();
     expect(parseJwt("")).toBeNull();

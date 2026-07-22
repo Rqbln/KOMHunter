@@ -29,8 +29,9 @@ function jsonResponse(
   });
 }
 
-function capturedHeaders(call: CapturedCall): Record<string, string> {
-  return (call.init.headers ?? {}) as Record<string, string>;
+/** fetchAPI now passes a Headers instance; normalize any shape for lookups */
+function capturedHeaders(call: CapturedCall): Headers {
+  return new Headers(call.init.headers as HeadersInit | undefined);
 }
 
 beforeEach(() => {
@@ -49,7 +50,7 @@ describe("fetchAPI authorization header", () => {
     await healthCheck();
 
     expect(calls).toHaveLength(1);
-    expect(capturedHeaders(calls[0])["Authorization"]).toBeUndefined();
+    expect(capturedHeaders(calls[0]).get("Authorization")).toBeNull();
   });
 
   it("attaches Authorization: Bearer <token> when kom_token is stored", async () => {
@@ -58,7 +59,7 @@ describe("fetchAPI authorization header", () => {
 
     await healthCheck();
 
-    expect(capturedHeaders(calls[0])["Authorization"]).toBe(
+    expect(capturedHeaders(calls[0]).get("Authorization")).toBe(
       "Bearer my-session-jwt"
     );
   });

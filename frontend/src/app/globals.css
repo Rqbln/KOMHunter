@@ -3,31 +3,35 @@
 /* Leaflet CSS */
 @import "leaflet/dist/leaflet.css";
 
-/* KOMHunter Theme Colors */
+/* KOMHunter Theme Colors — Strava-inspired (orange), light theme */
 :root {
-  /* Primary */
-  --primary: #0df259;
-  --primary-hover: #0bc94a;
-  
-  /* Backgrounds */
-  --background-light: #f8fcf9;
-  --background-dark: #102216;
-  
+  /* Primary — Strava orange */
+  --primary: #fc4c02;
+  --primary-hover: #e34402;
+
+  /* Sport accents (bike vs run differentiation) */
+  --sport-ride: #fc4c02;   /* orange for cycling */
+  --sport-run: #2d7dd2;    /* blue for running */
+
+  /* Backgrounds — warm neutral off-white */
+  --background-light: #f7f5f3;
+  --background-dark: #1a1a1a;
+
   /* Surfaces */
   --surface-light: #ffffff;
-  --surface-dark: #1a3322;
-  
+  --surface-dark: #242424;
+
   /* Text */
-  --text-main: #0d1c12;
+  --text-main: #1a1a1a;
   --text-light: #ffffff;
-  
-  /* Borders */
-  --border-light: #e7f4eb;
-  --border-dark: #2a4533;
-  
-  /* Accent */
-  --subtle-green: #499c65;
-  
+
+  /* Borders — warm neutral */
+  --border-light: #e8e6e3;
+  --border-dark: #333333;
+
+  /* Muted text (kept var name for existing text-subtle-green usages) */
+  --subtle-green: #6f6b66;
+
   /* Current theme values */
   --background: var(--background-light);
   --foreground: var(--text-main);

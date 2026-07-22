@@ -5,6 +5,7 @@
  */
 
 import type { AthleteKOM, SegmentEffort, StarredSegment } from "@/types";
+import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 
 interface KOMCardProps {
   kom: AthleteKOM;
@@ -149,8 +150,14 @@ export function StarredSegmentCard({ segment, onClick }: StarredSegmentCardProps
           <span className="text-xs bg-border px-2 py-1 rounded-full font-medium">
             {getCategoryLabel(segment.climb_category)}
           </span>
-          <p className="text-xs text-subtle-green mt-1">
-            {segment.activity_type}
+          <p
+            className="text-xs mt-1 flex items-center justify-end gap-1 font-medium"
+            style={{ color: sportColorVar(segment.activity_type) }}
+          >
+            <span className="material-symbols-outlined text-sm leading-none">
+              {sportIcon(segment.activity_type)}
+            </span>
+            {sportLabel(segment.activity_type)}
           </p>
         </div>
       </div>

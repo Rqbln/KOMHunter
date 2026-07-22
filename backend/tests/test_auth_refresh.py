@@ -100,11 +100,43 @@ class TestRefreshSession:
     def test_refresh_strava_failure_returns_401(
         self, client: TestClient, valid_jwt: str
     ):
+        """A Strava 400 (invalid refresh token) ends the session with a 401."""
         respx.post(STRAVA_TOKEN_URL).mock(
             return_value=httpx.Response(400, json={"message": "Bad Request"})
         )
         response = client.post("/api/auth/refresh", json={"token": valid_jwt})
         assert response.status_code == 401
+        assert (
+            response.json()["detail"]
+            == "Invalid or expired session - please log in with Strava again"
+        )
+
+    @respx.mock
+    def test_refresh_strava_rate_limited_returns_429(
+        self, client: TestClient, valid_jwt: str
+    ):
+        """A Strava 429 must surface as 429, not a 401 logout."""
+        respx.post(STRAVA_TOKEN_URL).mock(
+            return_value=httpx.Response(429, json={"message": "Rate Limit Exceeded"})
+        )
+        response = client.post("/api/auth/refresh", json={"token": valid_jwt})
+        assert response.status_code == 429
+        assert (
+            response.json()["detail"]
+            == "Strava rate limit exceeded - try again later"
+        )
+
+    @respx.mock
+    def test_refresh_strava_server_error_returns_503(
+        self, client: TestClient, valid_jwt: str
+    ):
+        """A Strava 5xx must surface as 503, not a 401 logout."""
+        respx.post(STRAVA_TOKEN_URL).mock(
+            return_value=httpx.Response(500, json={"message": "Server Error"})
+        )
+        response = client.post("/api/auth/refresh", json={"token": valid_jwt})
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Strava is unreachable - try again later"
 
 
 class TestAuthMe:

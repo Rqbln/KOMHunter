@@ -98,7 +98,7 @@ export function debounce<Args extends unknown[]>(
   func: (...args: Args) => unknown,
   wait: number
 ): (...args: Args) => void {
-  let timeout: NodeJS.Timeout | null = null;
+  let timeout: ReturnType<typeof setTimeout> | null = null;
   
   return (...args: Args) => {
     if (timeout) clearTimeout(timeout);
@@ -112,9 +112,12 @@ export function debounce<Args extends unknown[]>(
 export function parseJwt(token: string): Record<string, unknown> | null {
   try {
     const base64Url = token.split(".")[1];
+    // Restore standard base64 from base64url, then re-pad to a multiple of 4
+    // (base64url strips "=" padding; atob rejects unpadded input).
     const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
     const jsonPayload = decodeURIComponent(
-      atob(base64)
+      atob(padded)
         .split("")
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
         .join("")

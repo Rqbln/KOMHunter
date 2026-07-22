@@ -1,6 +1,7 @@
 """
 Segment exploration and details endpoints.
 """
+import logging
 import re
 from typing import List, Optional
 
@@ -21,6 +22,8 @@ from app.api.dependencies import get_strava_api_service, get_scoring_service
 from app.api.errors import map_strava_error
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
@@ -74,6 +77,9 @@ async def explore_segments(
             max_segments=request.max_segments,
         )
         
+        # Normalize the requested sport to the model vocabulary (riding/running)
+        sport = "running" if request.activity_type.value.startswith("run") else "riding"
+
         # Calculate difficulty scores (terrain-only, sport-aware)
         scored_segments = []
         for segment in segments:
@@ -94,6 +100,7 @@ async def explore_segments(
                     end_latlng=segment.get("end_latlng", [0, 0]),
                     climb_category=segment.get("climb_category", 0),
                     difficulty_score=difficulty,
+                    activity_type=sport,
                 )
             )
         
@@ -112,8 +119,9 @@ async def explore_segments(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to explore segments: {str(e)}")
+    except Exception:
+        logger.exception("Failed to explore segments")
+        raise HTTPException(status_code=500, detail="Failed to explore segments")
 
 
 @router.get("/geocode")
@@ -187,6 +195,8 @@ async def get_segment_details(
         athlete_count = segment_data.get("athlete_count", 0)
         # Strava returns activity_type "Ride" or "Run"
         activity_type = segment_data.get("activity_type", "Ride")
+        # Normalize to the model vocabulary (riding/running) for the response
+        sport = "running" if str(activity_type).lower().startswith("run") else "riding"
 
         # Calculate full breakdown: terrain difficulty + standalone context scores
         difficulty_result = scoring_service.compute_full_score(
@@ -236,11 +246,13 @@ async def get_segment_details(
             difficulty_score=difficulty_result["normalized_score"],
             difficulty_breakdown=difficulty_breakdown,
             kom=kom_data,
+            activity_type=sport,
         )
-        
+
     except HTTPException:
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get segment details: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get segment details")
+        raise HTTPException(status_code=500, detail="Failed to get segment details")

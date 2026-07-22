@@ -35,23 +35,20 @@ export function MainContent({
   onSegmentSelect,
   onClearSelection,
 }: MainContentProps) {
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [prevSegment, setPrevSegment] = useState<SegmentDetails | null>(null);
-
-  // Open panel when a new segment is selected (state adjusted during render,
-  // see https://react.dev/learn/you-might-not-need-an-effect)
-  if (selectedSegment !== prevSegment) {
-    setPrevSegment(selectedSegment);
-    if (selectedSegment) {
-      setIsPanelOpen(true);
-    }
-  }
+  // The panel is open purely as a function of the current selection — no
+  // render-phase setState and no setState-in-effect. On close we flag the
+  // segment being dismissed so the slide-out animation can play before the
+  // parent clears the selection (300ms later).
+  const [closingSegmentId, setClosingSegmentId] = useState<number | null>(null);
+  const isPanelOpen = !!selectedSegment && selectedSegment.id !== closingSegmentId;
 
   const handleClosePanel = () => {
-    setIsPanelOpen(false);
-    // Clear selection after animation
+    const closingId = selectedSegment?.id ?? null;
+    setClosingSegmentId(closingId);
+    // Clear selection after the close animation, then reset the closing flag.
     setTimeout(() => {
       onClearSelection?.();
+      setClosingSegmentId(null);
     }, 300);
   };
 

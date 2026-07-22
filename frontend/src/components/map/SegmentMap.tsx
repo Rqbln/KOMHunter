@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SegmentSummary, SegmentDetails } from "@/types";
 import { escapeHtml } from "@/lib/utils";
+import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 
 // Dynamically import Leaflet to avoid SSR issues
 let L: typeof import("leaflet") | null = null;
@@ -92,8 +93,8 @@ export function SegmentMap({
     } else {
       circleRef.current = L.circle([centerLat, centerLon], {
         radius: radiusKm * 1000,
-        color: "#0df259",
-        fillColor: "#0df259",
+        color: "#fc4c02",
+        fillColor: "#fc4c02",
         fillOpacity: 0.1,
         weight: 2,
       }).addTo(map);
@@ -137,10 +138,16 @@ export function SegmentMap({
         .bindPopup(
           // segment.name is untrusted Strava user-generated content and this
           // is an innerHTML sink (Leaflet bindPopup), so it must be escaped.
+          // sportIcon/sportLabel return fixed, controlled strings so they are
+          // safe to interpolate without escaping.
           `<div class="font-display">
             <p class="font-bold text-sm">${escapeHtml(segment.name)}</p>
             <p class="text-xs text-gray-600">${(segment.distance / 1000).toFixed(1)}km • ${segment.avg_grade}%</p>
             <p class="text-xs text-gray-500">Score: ${segment.difficulty_score?.toFixed(1) ?? "N/A"}</p>
+            <p class="text-xs font-medium" style="display:flex;align-items:center;gap:2px;color:${sportColorVar(segment.activity_type)}">
+              <span class="material-symbols-outlined" style="font-size:0.9rem">${sportIcon(segment.activity_type)}</span>
+              ${sportLabel(segment.activity_type)}
+            </p>
           </div>`
         )
         .on("click", () => onSegmentClick(segment.id));
@@ -177,7 +184,7 @@ export function SegmentMap({
         const decoded = decodePolyline(selectedSegment.polyline);
         if (decoded.length > 0) {
           polylineRef.current = leaflet.polyline(decoded, {
-            color: "#0df259",
+            color: "#fc4c02",
             weight: 4,
             opacity: 0.8,
           }).addTo(map);
@@ -244,7 +251,7 @@ export function SegmentMap({
         }
         .segment-marker div,
         .segment-marker-selected div {
-          background-color: #0df259;
+          background-color: #fc4c02;
         }
         .leaflet-popup-content-wrapper {
           border-radius: 0.75rem;

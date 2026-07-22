@@ -16,6 +16,7 @@ export interface SegmentSummary {
   end_latlng: [number, number];
   climb_category: number;
   difficulty_score: number;
+  activity_type?: string;
 }
 
 export interface KOMData {

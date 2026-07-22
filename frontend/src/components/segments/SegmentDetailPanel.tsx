@@ -5,6 +5,7 @@
  */
 
 import type { SegmentDetails, DifficultyBreakdown } from "@/types";
+import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 
 interface SegmentDetailPanelProps {
   segment: SegmentDetails | null;
@@ -97,7 +98,17 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
               <span className="material-symbols-outlined text-primary">landscape</span>
             </div>
             <div>
-              <h2 className="font-bold text-lg leading-tight">{segment.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-bold text-lg leading-tight">{segment.name}</h2>
+                <span
+                  className="material-symbols-outlined text-base leading-none"
+                  style={{ color: sportColorVar(segment.activity_type) }}
+                  title={sportLabel(segment.activity_type)}
+                  aria-label={sportLabel(segment.activity_type)}
+                >
+                  {sportIcon(segment.activity_type)}
+                </span>
+              </div>
               <p className="text-xs text-subtle-green">
                 {segment.city && `${segment.city}, `}{segment.state || segment.country}
               </p>
