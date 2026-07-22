@@ -11,6 +11,7 @@ import type {
   KOMsResponse,
   StarredSegmentsResponse,
   PRsResponse,
+  HeatmapResponse,
   GeocodingResult,
   SessionTokenResponse,
   SessionInfo,
@@ -174,6 +175,32 @@ export const athletes = {
    */
   async getPRs(page: number = 1, perPage: number = 30): Promise<PRsResponse> {
     return fetchAPI(`/api/athletes/me/prs?page=${page}&per_page=${perPage}`);
+  },
+
+  /**
+   * Get the current user's training heatmap: aggregated activity coordinates
+   * ready to feed a Leaflet heat layer. All params are optional; when omitted
+   * the backend aggregates across all sports and its default time window.
+   * `sport` filters by discipline and must be a backend-recognized value
+   * ("ride" | "run") — see lib/heatmapSport.ts; `after`/`before`
+   * are Unix seconds; `max_activities` caps how many activities are scanned
+   * (keep it economical — Strava is rate limited).
+   */
+  async getHeatmap(params?: {
+    sport?: string;
+    after?: number;
+    before?: number;
+    max_activities?: number;
+  }): Promise<HeatmapResponse> {
+    const query = new URLSearchParams();
+    if (params?.sport) query.set("sport", params.sport);
+    if (params?.after !== undefined) query.set("after", String(params.after));
+    if (params?.before !== undefined) query.set("before", String(params.before));
+    if (params?.max_activities !== undefined) {
+      query.set("max_activities", String(params.max_activities));
+    }
+    const qs = query.toString();
+    return fetchAPI(`/api/athletes/me/heatmap${qs ? `?${qs}` : ""}`);
   },
 };
 

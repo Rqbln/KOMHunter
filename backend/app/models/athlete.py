@@ -206,8 +206,40 @@ class StarredSegmentsResponse(BaseModel):
 
 class PRsResponse(BaseModel):
     """Response for athlete PRs list."""
-    
+
     prs: List[SegmentEffort] = Field(..., description="List of PR efforts")
     total_count: int = Field(..., description="Total count")
     page: int = Field(1, description="Current page")
     per_page: int = Field(30, description="Items per page")
+
+
+class HeatmapResponse(BaseModel):
+    """
+    Aggregated training-heatmap points built from activity summary polylines.
+
+    Intentionally JSON-light: ``points`` is a flat list of ``[lat, lng]`` pairs
+    sampled across the athlete's activities, ready to feed a Leaflet heat layer.
+    """
+
+    points: List[List[float]] = Field(
+        default_factory=list,
+        description="Aggregated [latitude, longitude] points across activities",
+    )
+    activity_count: int = Field(
+        0, description="Number of activities that contributed points to the heatmap"
+    )
+    sport: Optional[str] = Field(
+        None, description="Sport filter applied ('ride', 'run', or None for all)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "points": [
+                    [38.5, -120.2],
+                    [40.7, -120.95],
+                ],
+                "activity_count": 2,
+                "sport": "ride",
+            }
+        }

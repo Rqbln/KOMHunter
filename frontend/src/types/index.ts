@@ -187,6 +187,25 @@ export interface PRsResponse {
   per_page: number;
 }
 
+// Heatmap types
+
+// Sport filter for the training heatmap control. "all" aggregates every sport
+// (sent to the API as no filter, i.e. the `sport` query param omitted). "ride"
+// and "run" are sent VERBATIM as the `sport` query param and must match the
+// values the backend's _matches_sport recognizes ("ride"/"run") — NOT the
+// Strava activity_type strings ("riding"/"running"), which the backend ignores
+// (silently disabling the filter). See lib/heatmapSport.ts.
+export type HeatmapSport = "all" | "ride" | "run";
+
+export interface HeatmapResponse {
+  // Aggregated activity coordinates as [lat, lon] pairs, ready to feed a
+  // Leaflet heat layer. `sport` echoes the filter applied server-side (absent
+  // when all sports are aggregated).
+  points: [number, number][];
+  activity_count: number;
+  sport?: string;
+}
+
 // Geocoding types
 export interface GeocodingResult {
   latitude: number;

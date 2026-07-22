@@ -2,7 +2,10 @@
 Athlete profile and statistics endpoints.
 """
 import logging
-from typing import List, Optional
+import math
+import time
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -17,16 +20,108 @@ from app.models.athlete import (
     KOMsResponse,
     StarredSegmentsResponse,
     PRsResponse,
+    HeatmapResponse,
 )
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
-from app.api.dependencies import get_strava_api_service, get_scoring_service
+from app.api.dependencies import (
+    get_strava_api_service,
+    get_scoring_service,
+    get_token_payload,
+)
 from app.api.errors import map_strava_error
 from app.utils.formatters import format_seconds_to_time
+from app.utils.polyline import decode_polyline
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+# --- Training-heatmap tuning constants -------------------------------------
+# Strava caps activities pagination at 200/page. Using the max keeps the number
+# of upstream calls low (rate limits: 100 req/15min, 1000/day).
+_HEATMAP_PER_PAGE = 200
+# Absolute ceiling on Strava calls per heatmap build, regardless of the
+# requested max_activities, so a single request can never exhaust the budget.
+_HEATMAP_MAX_PAGES = 5
+# Target upper bound on the total number of points returned. Activities are
+# down-sampled with a global step so the payload stays JSON-light.
+_HEATMAP_TARGET_POINTS = 5000
+
+# Simple in-memory TTL cache keyed by (athlete_id, sport, after, before,
+# max_activities). Avoids re-hammering Strava when the frontend toggles filters
+# back and forth. Module-level dict, no external deps.
+#
+# The cache key includes user-controlled query params (after/before are
+# arbitrary epoch ints, max_activities 1..500, sport an arbitrary string), so
+# without an explicit bound an authenticated user could grow the cache without
+# limit by varying those params — each miss stores a HeatmapResponse of up to
+# ~5000 points and lazy per-key expiry never reclaims keys that aren't re-read.
+# We therefore back the cache with an OrderedDict and enforce two invariants on
+# every write: expired entries are swept, and the total entry count is capped
+# via least-recently-used eviction. This bounds worst-case memory to
+# ``_HEATMAP_CACHE_MAX_ENTRIES`` responses regardless of request patterns.
+_HEATMAP_CACHE_TTL = 300.0  # seconds
+_HEATMAP_CACHE_MAX_ENTRIES = 128
+_HEATMAP_CACHE: "OrderedDict[Tuple, Tuple[float, HeatmapResponse]]" = OrderedDict()
+
+
+def _heatmap_cache_get(key: Tuple) -> Optional[HeatmapResponse]:
+    """Return a cached response for ``key`` if present and not expired."""
+    entry = _HEATMAP_CACHE.get(key)
+    if entry is None:
+        return None
+    stored_at, value = entry
+    if time.monotonic() - stored_at > _HEATMAP_CACHE_TTL:
+        _HEATMAP_CACHE.pop(key, None)
+        return None
+    # Mark as most-recently-used so it survives LRU eviction longest.
+    _HEATMAP_CACHE.move_to_end(key)
+    return value
+
+
+def _heatmap_cache_set(key: Tuple, value: HeatmapResponse) -> None:
+    """Store ``value`` under ``key``, keeping the cache bounded.
+
+    On every write we (1) sweep every expired entry so stale keys can't
+    accumulate even when they're never re-read, and (2) evict the
+    least-recently-used entries until the count is within
+    ``_HEATMAP_CACHE_MAX_ENTRIES``. This caps worst-case memory regardless of
+    how many distinct (user-controlled) cache keys are generated.
+    """
+    now = time.monotonic()
+
+    # Sweep expired entries (list() snapshots keys so we can mutate while iterating).
+    for cached_key, (stored_at, _) in list(_HEATMAP_CACHE.items()):
+        if now - stored_at > _HEATMAP_CACHE_TTL:
+            _HEATMAP_CACHE.pop(cached_key, None)
+
+    # Insert/refresh and mark most-recently-used.
+    _HEATMAP_CACHE[key] = (now, value)
+    _HEATMAP_CACHE.move_to_end(key)
+
+    # Enforce the hard size cap via LRU eviction (oldest first).
+    while len(_HEATMAP_CACHE) > _HEATMAP_CACHE_MAX_ENTRIES:
+        _HEATMAP_CACHE.popitem(last=False)
+
+
+def _matches_sport(activity_type: Optional[str], sport: Optional[str]) -> bool:
+    """
+    Whether a Strava activity ``type`` matches the requested sport filter.
+
+    Strava types look like "Ride", "VirtualRide", "EBikeRide", "Run",
+    "TrailRun", "VirtualRun". A substring match on the normalized type keeps
+    all ride/run variants while excluding the other discipline.
+    """
+    if not sport:
+        return True
+    normalized = (activity_type or "").lower()
+    if sport == "ride":
+        return "ride" in normalized
+    if sport == "run":
+        return "run" in normalized
+    # Unknown sport value: don't filter anything out.
+    return True
 
 
 def parse_activity_totals(data: Optional[dict]) -> Optional[ActivityTotals]:
@@ -283,3 +378,116 @@ async def get_my_prs(
     except Exception:
         logger.exception("Failed to get PRs")
         raise HTTPException(status_code=500, detail="Failed to get PRs")
+
+
+@router.get("/me/heatmap", response_model=HeatmapResponse)
+async def get_my_heatmap(
+    sport: Optional[str] = Query(
+        None, description="Filter by sport: 'ride', 'run', or omit for all"
+    ),
+    after: Optional[int] = Query(
+        None,
+        ge=0,
+        description="Only include activities after this epoch timestamp",
+    ),
+    before: Optional[int] = Query(
+        None,
+        ge=0,
+        description="Only include activities before this epoch timestamp",
+    ),
+    max_activities: int = Query(
+        200,
+        ge=1,
+        le=500,
+        description="Maximum number of activities to aggregate (cap)",
+    ),
+    payload: Dict[str, Any] = Depends(get_token_payload),
+    strava_service: StravaAPIService = Depends(get_strava_api_service),
+) -> HeatmapResponse:
+    """
+    Build a training heatmap from the athlete's activity summary polylines.
+
+    Fetches recent activities (paginated, with a hard cap on Strava calls),
+    decodes each activity's ``map.summary_polyline`` and down-samples the
+    combined point set so the payload stays light. Results are cached
+    in-memory for a short TTL keyed by the athlete and filters, so repeated
+    filter toggles don't re-hammer Strava.
+    """
+    sport_norm = sport.lower() if sport else None
+    athlete_id = payload.get("sub")
+    cache_key = (athlete_id, sport_norm, after, before, max_activities)
+
+    cached = _heatmap_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        # Bound the number of Strava calls: never more than what's needed to
+        # reach max_activities, and never more than the hard page cap.
+        max_pages = min(
+            _HEATMAP_MAX_PAGES,
+            math.ceil(max_activities / _HEATMAP_PER_PAGE),
+        )
+
+        activities: List[dict] = []
+        for page in range(1, max_pages + 1):
+            batch = await strava_service.list_athlete_activities(
+                page=page,
+                per_page=_HEATMAP_PER_PAGE,
+                after=after,
+                before=before,
+            )
+            if not batch:
+                break
+            activities.extend(batch)
+            # A short page means Strava has no more data — stop paginating.
+            if len(batch) < _HEATMAP_PER_PAGE:
+                break
+            if len(activities) >= max_activities:
+                break
+
+        activities = activities[:max_activities]
+
+        # Decode the polyline of every activity matching the sport filter.
+        decoded_tracks: List[list] = []
+        for activity in activities:
+            if not _matches_sport(activity.get("type"), sport_norm):
+                continue
+            map_data = activity.get("map") or {}
+            encoded = map_data.get("summary_polyline")
+            if not encoded:
+                continue
+            track = decode_polyline(encoded)
+            if not track:
+                continue
+            decoded_tracks.append(track)
+
+        # Global down-sample step so the total point count stays bounded.
+        total_points = sum(len(track) for track in decoded_tracks)
+        step = 1
+        if total_points > _HEATMAP_TARGET_POINTS:
+            step = math.ceil(total_points / _HEATMAP_TARGET_POINTS)
+
+        points: List[List[float]] = []
+        for track in decoded_tracks:
+            for i in range(0, len(track), step):
+                lat, lng = track[i]
+                points.append([lat, lng])
+
+        result = HeatmapResponse(
+            points=points,
+            activity_count=len(decoded_tracks),
+            sport=sport_norm,
+        )
+        _heatmap_cache_set(cache_key, result)
+        return result
+
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
+    except Exception:
+        logger.exception("Failed to build training heatmap")
+        raise HTTPException(
+            status_code=500, detail="Failed to build training heatmap"
+        )

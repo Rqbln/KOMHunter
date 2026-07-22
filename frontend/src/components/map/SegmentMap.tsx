@@ -20,6 +20,10 @@ interface SegmentMapProps {
   radiusKm: number;
   onSegmentClick: (segmentId: number) => void;
   onCenterChange?: (lat: number, lng: number) => void;
+  // Training-heatmap points as [lat, lng] pairs. When non-empty a heat overlay
+  // is drawn on top of the map (kept separate from the segment markers); an
+  // empty/undefined value removes it.
+  heatmapPoints?: [number, number][];
 }
 
 export function SegmentMap({
@@ -30,12 +34,14 @@ export function SegmentMap({
   radiusKm,
   onSegmentClick,
   onCenterChange,
+  heatmapPoints,
 }: SegmentMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const circleRef = useRef<L.Circle | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  const heatLayerRef = useRef<L.Layer | null>(null);
   // Hold the latest callback so the map's click handler (registered once in the
   // init effect) always calls the current prop without re-initializing the map.
   const onCenterChangeRef = useRef(onCenterChange);
@@ -210,6 +216,74 @@ export function SegmentMap({
       }
     }
   }, [selectedSegment, isMapReady]);
+
+  // Training-heatmap overlay. Kept fully separate from the segment-marker
+  // layers: it lazily pulls in the leaflet.heat plugin (which augments the
+  // shared module-level Leaflet `L`) only when there are points to show, and
+  // rebuilds the layer whenever the points change or removes it when empty.
+  useEffect(() => {
+    if (!mapInstanceRef.current || !L || !isMapReady) return;
+
+    const map = mapInstanceRef.current;
+    const leaflet = L; // Local, non-null reference for TypeScript
+    let cancelled = false;
+
+    const removeHeatLayer = () => {
+      if (heatLayerRef.current) {
+        heatLayerRef.current.remove();
+        heatLayerRef.current = null;
+      }
+    };
+
+    if (!heatmapPoints || heatmapPoints.length === 0) {
+      removeHeatLayer();
+      return;
+    }
+
+    const addHeatLayer = async () => {
+      // Expose Leaflet globally so the plugin can extend it, then import it.
+      // leaflet.heat has no module exports — it attaches `heatLayer`/`HeatLayer`
+      // onto the global `L`. This runs after the core leaflet import (guaranteed
+      // by the `!L` guard above), so `leaflet` is the same object the plugin
+      // mutates.
+      (window as unknown as { L: typeof leaflet }).L = leaflet;
+      await import("leaflet.heat");
+      if (cancelled || !mapInstanceRef.current) return;
+
+      // Rebuild from scratch: drop any previous layer before adding the new one.
+      removeHeatLayer();
+
+      // leaflet.heat accepts [lat, lng] or [lat, lng, intensity]; give every
+      // point a modest intensity so overlapping training routes accumulate into
+      // hotter zones.
+      const heatData = heatmapPoints.map(
+        ([lat, lng]) => [lat, lng, 0.6] as [number, number, number]
+      );
+
+      heatLayerRef.current = leaflet
+        .heatLayer(heatData, {
+          radius: 18,
+          blur: 22,
+          maxZoom: 17,
+          minOpacity: 0.35,
+          // Gradient tuned to the Strava orange theme (--primary #fc4c02):
+          // faint amber for sparse areas up to a hot orange core.
+          gradient: {
+            0.2: "rgba(252, 76, 2, 0.15)",
+            0.4: "rgba(252, 76, 2, 0.45)",
+            0.65: "#fc8a02",
+            1.0: "#fc4c02",
+          },
+        })
+        .addTo(map);
+    };
+
+    addHeatLayer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [heatmapPoints, isMapReady]);
 
   // Zoom controls
   const handleZoomIn = () => {
