@@ -132,3 +132,19 @@ export function isTokenExpired(expiresAt: number): boolean {
   // Add 5 minute buffer
   return Date.now() / 1000 > expiresAt - 300;
 }
+
+/**
+ * Escape a string for safe interpolation into an HTML sink.
+ *
+ * Used for values that reach an innerHTML sink outside React's auto-escaping
+ * (e.g. Leaflet popup content built from Strava-supplied segment names, which
+ * are untrusted user-generated text).
+ */
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

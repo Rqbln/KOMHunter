@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SegmentSummary, SegmentDetails } from "@/types";
+import { escapeHtml } from "@/lib/utils";
 
 // Dynamically import Leaflet to avoid SSR issues
 let L: typeof import("leaflet") | null = null;
@@ -134,8 +135,10 @@ export function SegmentMap({
       )
         .addTo(map)
         .bindPopup(
+          // segment.name is untrusted Strava user-generated content and this
+          // is an innerHTML sink (Leaflet bindPopup), so it must be escaped.
           `<div class="font-display">
-            <p class="font-bold text-sm">${segment.name}</p>
+            <p class="font-bold text-sm">${escapeHtml(segment.name)}</p>
             <p class="text-xs text-gray-600">${(segment.distance / 1000).toFixed(1)}km • ${segment.avg_grade}%</p>
             <p class="text-xs text-gray-500">Score: ${segment.difficulty_score?.toFixed(1) ?? "N/A"}</p>
           </div>`

