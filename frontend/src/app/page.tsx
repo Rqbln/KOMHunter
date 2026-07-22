@@ -9,8 +9,9 @@ import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
 import { UserDashboard } from "@/components/dashboard/UserDashboard";
-import { useSegments, useStrava } from "@/hooks";
-import type { HuntParameters } from "@/types";
+import { useSegments, useStrava, useHeatmap } from "@/hooks";
+import { heatmapSportParam } from "@/lib/heatmapSport";
+import type { HuntParameters, HeatmapSport } from "@/types";
 
 /** Human-readable label for a map-picked point (no reverse geocoding). */
 function formatCoordLabel(lat: number, lon: number): string {
@@ -41,6 +42,43 @@ function HomePageContent() {
     selectSegment,
     clearSelection,
   } = useSegments();
+
+  // Training-heatmap overlay state. Nothing is fetched until the user turns the
+  // overlay on (useHeatmap.load is lazy), keeping us economical with Strava.
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [heatmapSport, setHeatmapSport] = useState<HeatmapSport>("all");
+  const {
+    points: heatmapPoints,
+    isLoading: isHeatmapLoading,
+    load: loadHeatmap,
+    clear: clearHeatmap,
+  } = useHeatmap();
+
+  // Toggle the overlay: turning it on triggers a (cached) load for the current
+  // sport filter; turning it off clears the fetched points.
+  const handleHeatmapToggle = useCallback(() => {
+    setHeatmapEnabled((prev) => {
+      const next = !prev;
+      if (next) {
+        loadHeatmap(heatmapSportParam(heatmapSport));
+      } else {
+        clearHeatmap();
+      }
+      return next;
+    });
+  }, [heatmapSport, loadHeatmap, clearHeatmap]);
+
+  // Switching the sport filter refetches (or serves from cache) only while the
+  // overlay is on.
+  const handleHeatmapSportChange = useCallback(
+    (sport: HeatmapSport) => {
+      setHeatmapSport(sport);
+      if (heatmapEnabled) {
+        loadHeatmap(heatmapSportParam(sport));
+      }
+    },
+    [heatmapEnabled, loadHeatmap]
+  );
 
   const handleStartHunt = useCallback(
     async (params: HuntParameters) => {
@@ -120,6 +158,13 @@ function HomePageContent() {
           onSegmentSelect={handleSegmentSelect}
           onClearSelection={clearSelection}
           onCenterChange={handleCenterChange}
+          heatmapAvailable={isAuthenticated}
+          heatmapEnabled={heatmapEnabled}
+          heatmapSport={heatmapSport}
+          isHeatmapLoading={isHeatmapLoading}
+          heatmapPoints={heatmapEnabled ? heatmapPoints : []}
+          onHeatmapToggle={handleHeatmapToggle}
+          onHeatmapSportChange={handleHeatmapSportChange}
         />
       </div>
 

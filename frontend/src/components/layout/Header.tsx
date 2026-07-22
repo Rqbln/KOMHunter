@@ -61,15 +61,28 @@ export function Header({ className, onOpenDashboard }: HeaderProps) {
       <div className="flex flex-1 justify-end gap-6 items-center">
         {/* Action buttons */}
         <div className="hidden md:flex gap-2">
-          <button className="flex items-center justify-center rounded-full size-10 bg-border hover:bg-primary/20 transition-colors">
+          <Link
+            href="/settings"
+            aria-label="Réglages"
+            aria-current={pathname === "/settings" ? "page" : undefined}
+            className={`flex items-center justify-center rounded-full size-10 transition-colors ${
+              pathname === "/settings"
+                ? "bg-primary/20 text-primary"
+                : "bg-border hover:bg-primary/20"
+            }`}
+          >
             <span className="material-symbols-outlined text-[20px]">settings</span>
-          </button>
-          <button className="flex items-center justify-center rounded-full size-10 bg-border hover:bg-primary/20 transition-colors relative">
+          </Link>
+          <Link
+            href="/settings"
+            aria-label="Notifications"
+            className="flex items-center justify-center rounded-full size-10 bg-border hover:bg-primary/20 transition-colors relative"
+          >
             <span className="material-symbols-outlined text-[20px]">
               notifications
             </span>
             <span className="absolute top-2 right-2 size-2 bg-primary rounded-full"></span>
-          </button>
+          </Link>
         </div>
 
         {/* User info */}

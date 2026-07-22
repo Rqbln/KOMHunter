@@ -8,6 +8,7 @@ import { useState, useCallback } from "react";
 import { LocationInput } from "./LocationInput";
 import { SportTypeToggle } from "./SportTypeToggle";
 import { RadiusSlider } from "./RadiusSlider";
+import { useSettings } from "@/hooks";
 import type { HuntParameters as HuntParamsType, ActivityType } from "@/types";
 
 interface HuntParametersProps {
@@ -30,9 +31,18 @@ export function HuntParameters({
   longitude,
   onLocationChange,
 }: HuntParametersProps) {
-  const [sportType, setSportType] = useState<ActivityType>("riding");
-  const [radiusKm, setRadiusKm] = useState(25);
+  // Sport and radius are seeded from the user's saved defaults, falling back to
+  // riding / 25 km when nothing is stored (or before settings hydrate). Rather
+  // than copying settings into state via an effect, we track only the user's
+  // in-form overrides and fall through to the saved default until they touch a
+  // control — so the seed follows the persisted value without a setState effect.
+  const { settings } = useSettings();
+  const [sportOverride, setSportOverride] = useState<ActivityType | null>(null);
+  const [radiusOverride, setRadiusOverride] = useState<number | null>(null);
   const [maxSegments, setMaxSegments] = useState(50);
+
+  const sportType = sportOverride ?? settings.defaultSport;
+  const radiusKm = radiusOverride ?? settings.defaultRadiusKm;
 
   const handleSubmit = useCallback(() => {
     onSubmit({
@@ -56,7 +66,7 @@ export function HuntParameters({
       {/* Sport Type Toggle */}
       <SportTypeToggle
         value={sportType}
-        onChange={setSportType}
+        onChange={(value) => setSportOverride(value)}
       />
 
       {/* Sliders */}
@@ -68,7 +78,7 @@ export function HuntParameters({
           min={1}
           max={100}
           unit="km"
-          onChange={setRadiusKm}
+          onChange={(value) => setRadiusOverride(value)}
         />
 
         {/* Max Segments Slider */}

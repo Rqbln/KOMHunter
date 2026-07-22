@@ -8,7 +8,8 @@ import { useState } from "react";
 import { SegmentMap } from "@/components/map/SegmentMap";
 import { SegmentTable } from "@/components/segments/SegmentTable";
 import { SegmentDetailPanel } from "@/components/segments/SegmentDetailPanel";
-import type { SegmentSummary, SegmentDetails } from "@/types";
+import type { SegmentSummary, SegmentDetails, HeatmapSport } from "@/types";
+import { HEATMAP_SPORTS } from "@/lib/heatmapSport";
 
 interface MainContentProps {
   className?: string;
@@ -22,6 +23,16 @@ interface MainContentProps {
   onSegmentSelect: (segmentId: number) => void;
   onClearSelection?: () => void;
   onCenterChange?: (lat: number, lng: number) => void;
+  // Training-heatmap overlay + control. The control is only shown when
+  // `heatmapAvailable` (i.e. the user is logged in). `heatmapPoints` are the
+  // points to render (already gated on the enabled state by the parent).
+  heatmapPoints?: [number, number][];
+  heatmapAvailable?: boolean;
+  heatmapEnabled?: boolean;
+  heatmapSport?: HeatmapSport;
+  isHeatmapLoading?: boolean;
+  onHeatmapToggle?: () => void;
+  onHeatmapSportChange?: (sport: HeatmapSport) => void;
 }
 
 export function MainContent({
@@ -36,6 +47,13 @@ export function MainContent({
   onSegmentSelect,
   onClearSelection,
   onCenterChange,
+  heatmapPoints,
+  heatmapAvailable,
+  heatmapEnabled,
+  heatmapSport = "all",
+  isHeatmapLoading,
+  onHeatmapToggle,
+  onHeatmapSportChange,
 }: MainContentProps) {
   // The panel is open purely as a function of the current selection — no
   // render-phase setState and no setState-in-effect. On close we flag the
@@ -68,7 +86,53 @@ export function MainContent({
           radiusKm={radiusKm}
           onSegmentClick={onSegmentSelect}
           onCenterChange={onCenterChange}
+          heatmapPoints={heatmapPoints}
         />
+
+        {/* Training-heatmap control (only meaningful when logged in) */}
+        {heatmapAvailable && (
+          <div className="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-2">
+            <button
+              type="button"
+              onClick={onHeatmapToggle}
+              aria-pressed={heatmapEnabled}
+              title="Heatmap d'entraînement"
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg shadow-lg transition-colors text-sm font-medium ${
+                heatmapEnabled
+                  ? "bg-primary text-white hover:bg-primary/90"
+                  : "bg-white dark:bg-surface-dark hover:bg-gray-50 dark:hover:bg-surface-dark/80"
+              }`}
+            >
+              <span
+                className={`material-symbols-outlined text-base leading-none ${
+                  isHeatmapLoading ? "animate-spin" : ""
+                }`}
+              >
+                {isHeatmapLoading ? "progress_activity" : "whatshot"}
+              </span>
+              <span className="hidden sm:inline">Heatmap d&apos;entraînement</span>
+            </button>
+
+            {heatmapEnabled && (
+              <div className="flex items-center gap-1 bg-white dark:bg-surface-dark p-1 rounded-lg shadow-lg">
+                {HEATMAP_SPORTS.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onHeatmapSportChange?.(value)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      heatmapSport === value
+                        ? "bg-primary text-white"
+                        : "text-subtle-green hover:bg-gray-100 dark:hover:bg-surface-dark/60"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Zone-selection hint */}
         <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none bg-surface/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 text-xs text-subtle-green">
