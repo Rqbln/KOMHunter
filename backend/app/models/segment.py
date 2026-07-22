@@ -15,38 +15,39 @@ class ActivityType(str, Enum):
 
 class DifficultyBreakdown(BaseModel):
     """
-    Detailed breakdown of segment difficulty using the unified formula.
-    
-    D_reel = w1 × S_phys + w2 × I_prestige + w3 × F_comp
+    Segment difficulty breakdown.
+
+    The headline ``normalized_score`` (== ``physical_score``) is terrain-only,
+    sport-aware difficulty (0-100). ``prestige_score`` (popularity) and
+    ``competitiveness_score`` (KOM speed) are INDEPENDENT context metrics — they
+    are shown alongside difficulty, not summed into it.
     """
-    
-    raw_score: float = Field(..., description="Raw difficulty score")
-    normalized_score: float = Field(..., description="Normalized score (0-100)")
+
+    raw_score: float = Field(..., description="Terrain difficulty score (0-100)")
+    normalized_score: float = Field(..., description="Terrain difficulty score (0-100)")
     category: str = Field(..., description="Difficulty category (easy/moderate/hard/expert)")
-    physical_score: float = Field(..., description="Physical difficulty score (S_phys)")
-    prestige_score: float = Field(..., description="Prestige/popularity score (I_prestige)")
-    competitiveness_score: float = Field(..., description="Competitiveness score (F_comp)")
+    physical_score: float = Field(..., description="Terrain difficulty (same as normalized_score)")
+    prestige_score: float = Field(..., description="Independent popularity/prestige score (0-100)")
+    competitiveness_score: float = Field(..., description="Independent KOM-speed competitiveness (0-100)")
     strava_category_points: int = Field(0, description="Strava category score (length × grade)")
+    activity_type: Optional[str] = Field(None, description="Sport used for scoring (riding/running)")
     weights_used: Optional[Dict[str, float]] = Field(
-        None, 
-        description="Weights used for calculation"
+        None,
+        description="Deprecated: difficulty is no longer a weighted blend (always null)",
     )
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "raw_score": 52.3,
                 "normalized_score": 52.3,
-                "category": "moderate",
-                "physical_score": 45.0,
+                "category": "hard",
+                "physical_score": 52.3,
                 "prestige_score": 58.2,
                 "competitiveness_score": 55.0,
                 "strava_category_points": 42120,
-                "weights_used": {
-                    "physical": 0.4,
-                    "prestige": 0.35,
-                    "competitiveness": 0.25
-                }
+                "activity_type": "riding",
+                "weights_used": None,
             }
         }
 
@@ -145,11 +146,13 @@ class SegmentDetails(BaseModel):
                 "difficulty_breakdown": {
                     "raw_score": 52.3,
                     "normalized_score": 52.3,
-                    "category": "moderate",
-                    "physical_score": 45.0,
+                    "category": "hard",
+                    "physical_score": 52.3,
                     "prestige_score": 58.2,
                     "competitiveness_score": 55.0,
                     "strava_category_points": 42120,
+                    "activity_type": "riding",
+                    "weights_used": None,
                 },
                 "kom": {
                     "kom_time": "14:22",

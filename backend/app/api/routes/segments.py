@@ -74,13 +74,14 @@ async def explore_segments(
             max_segments=request.max_segments,
         )
         
-        # Calculate difficulty scores
+        # Calculate difficulty scores (terrain-only, sport-aware)
         scored_segments = []
         for segment in segments:
             difficulty = scoring_service.compute_difficulty(
                 distance_m=segment.get("distance", 0),
                 elevation_gain=segment.get("elev_difference", 0),
                 avg_grade=segment.get("avg_grade", 0),
+                activity_type=request.activity_type,
             )
             scored_segments.append(
                 SegmentSummary(
@@ -184,12 +185,15 @@ async def get_segment_details(
         elev_high = segment_data.get("elevation_high", 0)
         effort_count = segment_data.get("effort_count", 0)
         athlete_count = segment_data.get("athlete_count", 0)
-        
-        # Calculate full difficulty breakdown using the unified formula
+        # Strava returns activity_type "Ride" or "Run"
+        activity_type = segment_data.get("activity_type", "Ride")
+
+        # Calculate full breakdown: terrain difficulty + standalone context scores
         difficulty_result = scoring_service.compute_full_score(
             distance_m=distance_m,
             elevation_gain=elevation_gain,
             avg_grade=avg_grade,
+            activity_type=activity_type,
             max_grade=max_grade,
             elev_high=elev_high,
             effort_count=effort_count,
@@ -206,6 +210,7 @@ async def get_segment_details(
             prestige_score=difficulty_result["prestige_score"],
             competitiveness_score=difficulty_result["competitiveness_score"],
             strava_category_points=difficulty_result["strava_category_points"],
+            activity_type=difficulty_result.get("activity_type"),
             weights_used=difficulty_result.get("weights_used"),
         )
         
