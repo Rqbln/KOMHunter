@@ -19,6 +19,7 @@ interface SegmentMapProps {
   centerLon: number;
   radiusKm: number;
   onSegmentClick: (segmentId: number) => void;
+  onCenterChange?: (lat: number, lng: number) => void;
 }
 
 export function SegmentMap({
@@ -28,13 +29,21 @@ export function SegmentMap({
   centerLon,
   radiusKm,
   onSegmentClick,
+  onCenterChange,
 }: SegmentMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const circleRef = useRef<L.Circle | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
+  // Hold the latest callback so the map's click handler (registered once in the
+  // init effect) always calls the current prop without re-initializing the map.
+  const onCenterChangeRef = useRef(onCenterChange);
   const [isMapReady, setIsMapReady] = useState(false);
+
+  useEffect(() => {
+    onCenterChangeRef.current = onCenterChange;
+  }, [onCenterChange]);
 
   // Initialize Leaflet
   useEffect(() => {
@@ -63,6 +72,11 @@ export function SegmentMap({
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         }).addTo(map);
+
+        // Clicking the map recenters the search around the clicked point.
+        map.on("click", (e: L.LeafletMouseEvent) => {
+          onCenterChangeRef.current?.(e.latlng.lat, e.latlng.lng);
+        });
 
         mapInstanceRef.current = map;
         setIsMapReady(true);

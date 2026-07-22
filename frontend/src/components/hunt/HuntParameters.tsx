@@ -13,40 +13,44 @@ import type { HuntParameters as HuntParamsType, ActivityType } from "@/types";
 interface HuntParametersProps {
   onSubmit: (params: HuntParamsType) => void;
   isLoading?: boolean;
+  // The search center is owned by the page so the map and this form stay in
+  // sync: clicking the map recenters the search here too. Controlled inputs —
+  // this component keeps no private copy of the location/coordinates.
+  location: string;
+  latitude: number;
+  longitude: number;
+  onLocationChange: (location: string, lat: number, lon: number) => void;
 }
 
-export function HuntParameters({ onSubmit, isLoading }: HuntParametersProps) {
-  const [location, setLocation] = useState("Paris, France");
-  const [coordinates, setCoordinates] = useState({ lat: 48.8566, lon: 2.3522 });
+export function HuntParameters({
+  onSubmit,
+  isLoading,
+  location,
+  latitude,
+  longitude,
+  onLocationChange,
+}: HuntParametersProps) {
   const [sportType, setSportType] = useState<ActivityType>("riding");
   const [radiusKm, setRadiusKm] = useState(25);
   const [maxSegments, setMaxSegments] = useState(50);
 
-  const handleLocationChange = useCallback(
-    (newLocation: string, lat: number, lon: number) => {
-      setLocation(newLocation);
-      setCoordinates({ lat, lon });
-    },
-    []
-  );
-
   const handleSubmit = useCallback(() => {
     onSubmit({
       location,
-      latitude: coordinates.lat,
-      longitude: coordinates.lon,
+      latitude,
+      longitude,
       sportType,
       radiusKm,
       maxSegments,
     });
-  }, [location, coordinates, sportType, radiusKm, maxSegments, onSubmit]);
+  }, [location, latitude, longitude, sportType, radiusKm, maxSegments, onSubmit]);
 
   return (
     <div className="space-y-6">
       {/* Location Input */}
       <LocationInput
         value={location}
-        onChange={handleLocationChange}
+        onChange={onLocationChange}
       />
 
       {/* Sport Type Toggle */}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Lexend, Geist_Mono } from "next/font/google";
+import { StravaProvider } from "@/hooks";
 import "./globals.css";
 
 const lexend = Lexend({
@@ -35,9 +36,9 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${lexend.variable} ${geistMono.variable} antialiased bg-background text-foreground font-sans overflow-hidden h-screen flex flex-col`}
+        className={`${lexend.variable} ${geistMono.variable} antialiased bg-background text-foreground font-sans min-h-screen`}
       >
-        {children}
+        <StravaProvider>{children}</StravaProvider>
       </body>
     </html>
   );

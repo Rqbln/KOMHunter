@@ -75,14 +75,29 @@ async def explore_segments(
             radius_km=request.radius_km,
             activity_type=request.activity_type,
             max_segments=request.max_segments,
+            min_cat=request.min_cat,
+            max_cat=request.max_cat,
         )
-        
+
         # Normalize the requested sport to the model vocabulary (riding/running)
         sport = "running" if request.activity_type.value.startswith("run") else "riding"
 
         # Calculate difficulty scores (terrain-only, sport-aware)
         scored_segments = []
         for segment in segments:
+            # Client-side grade/distance filters: drop out-of-range segments
+            # before scoring. Omitted bounds (None) impose no constraint.
+            avg_grade = segment.get("avg_grade", 0)
+            distance_m = segment.get("distance", 0)
+            if request.min_grade is not None and avg_grade < request.min_grade:
+                continue
+            if request.max_grade is not None and avg_grade > request.max_grade:
+                continue
+            if request.min_distance_m is not None and distance_m < request.min_distance_m:
+                continue
+            if request.max_distance_m is not None and distance_m > request.max_distance_m:
+                continue
+
             difficulty = scoring_service.compute_difficulty(
                 distance_m=segment.get("distance", 0),
                 elevation_gain=segment.get("elev_difference", 0),

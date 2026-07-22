@@ -14,9 +14,10 @@ type TabType = "stats" | "koms" | "prs" | "starred";
 interface UserDashboardProps {
   isOpen: boolean;
   onClose: () => void;
+  onSelectSegment?: (segmentId: number) => void;
 }
 
-export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
+export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboardProps) {
   const { athlete, isAuthenticated } = useStrava();
   const {
     stats,
@@ -137,7 +138,14 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
                 </div>
               ) : koms.length > 0 ? (
                 koms.map((kom) => (
-                  <KOMCard key={`${kom.segment_id}-${kom.activity_id}`} kom={kom} />
+                  <KOMCard
+                    key={`${kom.segment_id}-${kom.activity_id}`}
+                    kom={kom}
+                    onClick={() => {
+                      onSelectSegment?.(kom.segment_id);
+                      onClose();
+                    }}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8 text-subtle-green">
@@ -158,7 +166,14 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
                 </div>
               ) : prs.length > 0 ? (
                 prs.map((pr) => (
-                  <PRCard key={pr.id} pr={pr} />
+                  <PRCard
+                    key={pr.id}
+                    pr={pr}
+                    onClick={() => {
+                      onSelectSegment?.(pr.segment_id);
+                      onClose();
+                    }}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8 text-subtle-green">
@@ -179,7 +194,14 @@ export function UserDashboard({ isOpen, onClose }: UserDashboardProps) {
                 </div>
               ) : starredSegments.length > 0 ? (
                 starredSegments.map((segment) => (
-                  <StarredSegmentCard key={segment.id} segment={segment} />
+                  <StarredSegmentCard
+                    key={segment.id}
+                    segment={segment}
+                    onClick={() => {
+                      onSelectSegment?.(segment.id);
+                      onClose();
+                    }}
+                  />
                 ))
               ) : (
                 <div className="text-center py-8 text-subtle-green">

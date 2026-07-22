@@ -76,31 +76,35 @@ class StravaAPIService:
         radius_km: float = 10,
         activity_type: str = "riding",
         max_segments: int = 50,
+        min_cat: int = 0,
+        max_cat: int = 5,
     ) -> List[Dict[str, Any]]:
         """
         Explore segments in a given area.
-        
+
         Args:
             lat: Center latitude
             lon: Center longitude
             radius_km: Search radius in kilometers
             activity_type: 'riding' or 'running'
             max_segments: Maximum segments to return
-            
+            min_cat: Minimum Strava climb category (0-5)
+            max_cat: Maximum Strava climb category (0-5)
+
         Returns:
             List of segment summaries
         """
         # Convert radius to approximate bounding box
         # 1 degree latitude ≈ 111km
         delta = radius_km / 111
-        
+
         bounds = f"{lat - delta},{lon - delta},{lat + delta},{lon + delta}"
-        
+
         params = {
             "bounds": bounds,
             "activity_type": activity_type.lower(),
-            "min_cat": 0,
-            "max_cat": 5,
+            "min_cat": min_cat,
+            "max_cat": max_cat,
         }
         
         response = await self._request("GET", "/segments/explore", params=params)

@@ -21,6 +21,7 @@ interface MainContentProps {
   isLoadingDetails?: boolean;
   onSegmentSelect: (segmentId: number) => void;
   onClearSelection?: () => void;
+  onCenterChange?: (lat: number, lng: number) => void;
 }
 
 export function MainContent({
@@ -34,6 +35,7 @@ export function MainContent({
   isLoadingDetails,
   onSegmentSelect,
   onClearSelection,
+  onCenterChange,
 }: MainContentProps) {
   // The panel is open purely as a function of the current selection — no
   // render-phase setState and no setState-in-effect. On close we flag the
@@ -65,8 +67,15 @@ export function MainContent({
           centerLon={centerLon}
           radiusKm={radiusKm}
           onSegmentClick={onSegmentSelect}
+          onCenterChange={onCenterChange}
         />
-        
+
+        {/* Zone-selection hint */}
+        <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none bg-surface/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 text-xs text-subtle-green">
+          <span className="material-symbols-outlined text-sm leading-none">ads_click</span>
+          Cliquez sur la carte pour recentrer la recherche
+        </div>
+
         {/* Loading indicator for segment details */}
         {isLoadingDetails && (
           <div className="absolute top-4 right-4 bg-surface px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 z-20">
