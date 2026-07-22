@@ -1,7 +1,5 @@
 # KOMHunter Docker Compose Configuration
 
-version: '3.8'
-
 services:
   backend:
     build:
@@ -15,7 +13,8 @@ services:
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REDIRECT_URI=http://localhost:8000/api/auth/callback
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key}
+      # No fallback on purpose: fail loudly if JWT_SECRET_KEY is not provided
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set (e.g. openssl rand -hex 32)}
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
     env_file:
       - ./backend/.env
