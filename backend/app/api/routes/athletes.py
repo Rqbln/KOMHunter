@@ -2,6 +2,8 @@
 Athlete profile and statistics endpoints.
 """
 from typing import List, Optional
+
+import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query
 
 from app.models.athlete import (
@@ -18,6 +20,7 @@ from app.models.athlete import (
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
 from app.api.dependencies import get_strava_api_service, get_scoring_service
+from app.api.errors import map_strava_error
 from app.utils.formatters import format_seconds_to_time
 
 router = APIRouter()
@@ -64,6 +67,10 @@ async def get_my_profile(
             updated_at=athlete_data.get("updated_at", ""),
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get athlete profile: {str(e)}")
 
@@ -96,6 +103,10 @@ async def get_my_stats(
             all_run_totals=parse_activity_totals(stats_data.get("all_run_totals")),
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get athlete stats: {str(e)}")
 
@@ -147,6 +158,10 @@ async def get_my_koms(
             per_page=per_page,
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get KOMs: {str(e)}")
 
@@ -191,6 +206,10 @@ async def get_my_starred_segments(
             per_page=per_page,
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get starred segments: {str(e)}")
 
@@ -250,5 +269,9 @@ async def get_my_prs(
             per_page=per_page,
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get PRs: {str(e)}")

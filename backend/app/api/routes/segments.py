@@ -4,6 +4,7 @@ Segment exploration and details endpoints.
 import re
 from typing import List, Optional
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Depends
 
 from app.models.segment import (
@@ -17,6 +18,7 @@ from app.models.segment import (
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
 from app.api.dependencies import get_strava_api_service, get_scoring_service
+from app.api.errors import map_strava_error
 
 router = APIRouter()
 
@@ -105,6 +107,10 @@ async def explore_segments(
             radius_km=request.radius_km,
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to explore segments: {str(e)}")
 
@@ -227,5 +233,9 @@ async def get_segment_details(
             kom=kom_data,
         )
         
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as e:
+        raise map_strava_error(e) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get segment details: {str(e)}")

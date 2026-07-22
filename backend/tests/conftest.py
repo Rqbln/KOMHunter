@@ -2,8 +2,9 @@
 Pytest configuration and fixtures for KOMHunter tests.
 """
 import os
+import time
 import pytest
-from typing import Generator, AsyncGenerator
+from typing import Callable, Generator, AsyncGenerator
 
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
@@ -16,6 +17,9 @@ os.environ["JWT_SECRET_KEY"] = "test_jwt_secret_key"
 from app.main import app
 from app.services.scoring import ScoringService
 from app.services.geocoding import GeocodingService
+from app.services.strava_auth import StravaAuthService
+
+TEST_JWT_SECRET = os.environ["JWT_SECRET_KEY"]
 
 
 @pytest.fixture
@@ -73,6 +77,63 @@ def sample_athlete() -> dict:
         "country": "United States",
         "premium": True,
     }
+
+
+@pytest.fixture
+def jwt_auth_service() -> StravaAuthService:
+    """Auth service configured with the test environment credentials."""
+    return StravaAuthService(
+        client_id=os.environ["STRAVA_CLIENT_ID"],
+        client_secret=os.environ["STRAVA_CLIENT_SECRET"],
+        redirect_uri="http://localhost:8000/api/auth/callback",
+    )
+
+
+@pytest.fixture
+def make_jwt(jwt_auth_service: StravaAuthService) -> Callable[..., str]:
+    """
+    Factory producing valid KOMHunter session JWTs signed with the test secret.
+
+    Usage: make_jwt(), make_jwt(expires_at=<past ts>), make_jwt(athlete_id=...).
+    """
+    def _make(
+        athlete_id: int = 12345,
+        access_token: str = "test_access_token",
+        refresh_token: str = "test_refresh_token",
+        expires_at: int | None = None,
+    ) -> str:
+        if expires_at is None:
+            expires_at = int(time.time()) + 6 * 3600  # Strava token valid 6h
+        token_data = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+            "athlete": {"id": athlete_id},
+        }
+        return jwt_auth_service.create_jwt_token(token_data)
+
+    return _make
+
+
+@pytest.fixture
+def valid_jwt(make_jwt) -> str:
+    """A valid JWT whose embedded Strava token is far from expiry."""
+    return make_jwt()
+
+
+@pytest.fixture
+def auth_headers(valid_jwt: str) -> dict:
+    """Authorization headers with a valid session JWT."""
+    return {"Authorization": f"Bearer {valid_jwt}"}
+
+
+@pytest.fixture
+def expired_strava_jwt(make_jwt) -> str:
+    """
+    JWT whose embedded Strava token expired (expires_at in the past)
+    while the JWT itself (exp) is still valid — triggers auto-refresh.
+    """
+    return make_jwt(expires_at=int(time.time()) - 600)
 
 
 @pytest.fixture

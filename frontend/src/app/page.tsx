@@ -9,13 +9,16 @@ import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
 import { UserDashboard } from "@/components/dashboard/UserDashboard";
-import { useSegments } from "@/hooks";
+import { useSegments, useStrava, StravaProvider } from "@/hooks";
 import type { HuntParameters } from "@/types";
 
-export default function HomePage() {
+function HomePageContent() {
   const [huntParams, setHuntParams] = useState<HuntParameters | null>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
-  
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+
+  const { isAuthenticated, login } = useStrava();
+
   const {
     segments,
     selectedSegment,
@@ -30,10 +33,16 @@ export default function HomePage() {
 
   const handleStartHunt = useCallback(
     async (params: HuntParameters) => {
+      if (!isAuthenticated) {
+        // No API call without a session: prompt the user to log in instead
+        setShowLoginPrompt(true);
+        return;
+      }
+      setShowLoginPrompt(false);
       setHuntParams(params);
       await explore(params);
     },
-    [explore]
+    [explore, isAuthenticated]
   );
 
   const handleSegmentSelect = useCallback(
@@ -76,17 +85,45 @@ export default function HomePage() {
       </div>
 
       {/* User Dashboard */}
-      <UserDashboard 
-        isOpen={isDashboardOpen} 
-        onClose={handleCloseDashboard} 
+      <UserDashboard
+        isOpen={isDashboardOpen}
+        onClose={handleCloseDashboard}
       />
 
+      {/* Login Prompt Toast */}
+      {showLoginPrompt && (
+        <div className="fixed bottom-4 right-4 bg-orange-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-3">
+          <p className="text-sm font-medium">Log in with Strava to start hunting</p>
+          <button
+            onClick={login}
+            className="text-sm font-semibold underline hover:text-orange-100"
+          >
+            Log in
+          </button>
+          <button
+            onClick={() => setShowLoginPrompt(false)}
+            aria-label="Dismiss"
+            className="text-sm font-semibold hover:text-orange-100"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Error Toast */}
-      {error && (
+      {!showLoginPrompt && error && (
         <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">
           <p className="text-sm font-medium">{error}</p>
         </div>
       )}
     </>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <StravaProvider>
+      <HomePageContent />
+    </StravaProvider>
   );
 }

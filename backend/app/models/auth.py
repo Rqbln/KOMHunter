@@ -34,6 +34,31 @@ class TokenResponse(BaseModel):
         }
 
 
+class SessionRefreshRequest(BaseModel):
+    """Request body for session (JWT) refresh."""
+
+    token: str = Field(..., description="Current KOMHunter JWT session token")
+
+
+class SessionTokenResponse(BaseModel):
+    """Response containing a freshly minted JWT session token."""
+
+    token: str = Field(..., description="New KOMHunter JWT session token")
+
+
+class SessionInfoResponse(BaseModel):
+    """Current session information (no Strava network call)."""
+
+    athlete_id: str = Field(..., description="Strava athlete ID (JWT subject)")
+    strava_token_expires_at: int = Field(
+        ..., description="Embedded Strava access token expiration timestamp"
+    )
+    session_expires_at: int = Field(..., description="JWT session expiration timestamp")
+    strava_token_expired: bool = Field(
+        ..., description="Whether the embedded Strava token is expired (5-min buffer)"
+    )
+
+
 class JWTPayload(BaseModel):
     """JWT token payload."""
     

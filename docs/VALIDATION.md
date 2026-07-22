@@ -177,8 +177,8 @@ curl http://localhost:8000/api/health
    - `.cursorrules`
 
 4. **Documentation**
-   - `ARCHITECTURE.md`
-   - `VALIDATION.md`
+   - `docs/ARCHITECTURE.md`
+   - `docs/VALIDATION.md`
    - OpenAPI à `/docs`
 
 ## Prochaines Étapes (Roadmap UX)
@@ -192,3 +192,17 @@ La phase technique est complète. La prochaine roadmap couvrira:
 5. Gestion des erreurs UX
 6. Notifications temps réel
 7. Export de données (CSV/GPX)
+
+---
+
+## E2E browser checklist (v1 remediation) — 2026-07-22
+
+Manual acceptance run in a real browser (http://localhost:3000, backend on :8000, valid Strava credentials in `backend/.env`). Check each step in order:
+
+- [ ] **Login** — click "Login with Strava", authorize on strava.com, land back on the app authenticated (athlete name/avatar visible in the header).
+- [ ] **Hunt** — enter location "Paris", radius 10 km, sport "riding", click "Start Hunt": the results table fills AND markers/polylines appear on the map.
+- [ ] **Detail panel** — click a table row: the segment detail panel opens with the difficulty score breakdown (distance, elevation, grade, KOM/QOM time).
+- [ ] **Strava deep link** — click "Voir sur Strava": a new tab opens on `strava.com/segments/{id}` for that segment.
+- [ ] **Dashboard** — open the dashboard: athlete stats, KOMs, PRs, and starred segments load without errors.
+- [ ] **Logout** — log out: the UI returns to the unauthenticated state.
+- [ ] **Logged-out hunt** — while logged out, click "Start Hunt": the app shows the login CTA ("Log in with Strava to start hunting"), and NEVER a raw `Authorization header required` error (the original v1 bug).

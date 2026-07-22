@@ -4,7 +4,7 @@
  * Main content area with map, segment table, and detail panel
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { SegmentMap } from "@/components/map/SegmentMap";
 import { SegmentTable } from "@/components/segments/SegmentTable";
 import { SegmentDetailPanel } from "@/components/segments/SegmentDetailPanel";
@@ -36,13 +36,16 @@ export function MainContent({
   onClearSelection,
 }: MainContentProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [prevSegment, setPrevSegment] = useState<SegmentDetails | null>(null);
 
-  // Open panel when a segment is selected
-  useEffect(() => {
+  // Open panel when a new segment is selected (state adjusted during render,
+  // see https://react.dev/learn/you-might-not-need-an-effect)
+  if (selectedSegment !== prevSegment) {
+    setPrevSegment(selectedSegment);
     if (selectedSegment) {
       setIsPanelOpen(true);
     }
-  }, [selectedSegment]);
+  }
 
   const handleClosePanel = () => {
     setIsPanelOpen(false);

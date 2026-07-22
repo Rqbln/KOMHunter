@@ -5,9 +5,9 @@ KOMHunter is a Strava segment discovery application that helps athletes find and
 
 ## Architecture
 - **Backend**: FastAPI (Python 3.11+) with Pydantic v2
-- **Frontend**: Next.js 14+ with TypeScript and TailwindCSS
+- **Frontend**: Next.js 16 with TypeScript and TailwindCSS
 - **Auth**: OAuth2 with Strava, JWT sessions
-- **Map**: Leaflet or Mapbox GL
+- **Map**: Leaflet
 
 ## Code Standards
 
@@ -68,7 +68,7 @@ frontend/src/
 
 ## Dependencies
 - Always specify exact versions in requirements.txt
-- Use npm for frontend package management
+- Use Bun for frontend package management (never npm)
 - Prefer well-maintained libraries with active communities
 
 ## Documentation

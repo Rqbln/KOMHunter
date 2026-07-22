@@ -34,17 +34,17 @@ class TestScoringService:
         assert score < steep_score
     
     def test_compute_difficulty_zero_distance(self, scoring_service: ScoringService):
-        """Test handling of zero distance."""
+        """Test handling of zero distance: invalid segment scores 0.0."""
         score = scoring_service.compute_difficulty(
             distance_m=0,
             elevation_gain=100,
             avg_grade=5.0,
         )
-        assert score == 9999  # Invalid segment marker
-    
+        assert score == 0.0  # Invalid segment (no distance) -> no difficulty
+
     def test_compute_difficulty_with_kom_speed(self, scoring_service: ScoringService):
-        """Test difficulty with KOM speed factor."""
-        # Faster KOM = harder to beat
+        """Test difficulty with KOM speed factor (unified semantics)."""
+        # Faster KOM = more competitive segment = HIGHER difficulty score
         fast_kom_score = scoring_service.compute_difficulty(
             distance_m=5000,
             elevation_gain=200,
@@ -57,7 +57,7 @@ class TestScoringService:
             avg_grade=4.0,
             kom_speed_kmh=20,
         )
-        assert fast_kom_score < slow_kom_score
+        assert fast_kom_score > slow_kom_score
     
     def test_compute_difficulty_with_effort_count(self, scoring_service: ScoringService):
         """Test difficulty with effort count factor."""

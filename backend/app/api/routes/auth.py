@@ -1,23 +1,69 @@
 """
 Authentication endpoints for Strava OAuth2 flow.
+
+The browser only ever holds the KOMHunter session JWT ("kom_token") —
+raw Strava tokens stay server-side, embedded in the signed JWT payload.
 """
-from typing import Optional
-from urllib.parse import urlencode
+from typing import Any, Dict, Optional
+from urllib.parse import urlsplit, urlunsplit
 import secrets
 
-from fastapi import APIRouter, HTTPException, Query, Response, Depends
+import httpx
+import jwt
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
 
 from app.config import get_settings
-from app.models.auth import TokenResponse, AuthState
+from app.models.auth import (
+    AuthState,
+    SessionInfoResponse,
+    SessionRefreshRequest,
+    SessionTokenResponse,
+)
 from app.services.strava_auth import StravaAuthService
-from app.api.dependencies import get_strava_auth_service
+from app.api.dependencies import get_strava_auth_service, get_token_payload
 
 router = APIRouter()
 
 # In-memory state storage (use Redis in production)
 _auth_states: dict[str, AuthState] = {}
+
+
+def _validate_redirect_url(redirect_url: Optional[str]) -> str:
+    """
+    Enforce an origin allowlist on the post-auth redirect target.
+
+    The OAuth callback appends the session JWT to this URL, so an
+    unvalidated value is an open redirect that exfiltrates the token
+    (and the Strava tokens embedded in it) to an attacker-controlled
+    host. Only the configured frontend origins (CORS origins) may
+    receive the token; anything else is rejected with 400.
+
+    Returns the validated URL with any fragment stripped, so the
+    ``#token=`` fragment appended later is never ambiguous.
+    """
+    settings = get_settings()
+    allowed_origins = {o.rstrip("/").lower() for o in settings.cors_origins_list}
+
+    if not redirect_url:
+        # Default to the first configured frontend origin
+        return settings.cors_origins_list[0].rstrip("/")
+
+    # Browsers treat "\" as "/" in URLs but urlsplit does not — reject outright
+    if "\\" in redirect_url:
+        raise HTTPException(
+            status_code=400, detail="redirect_url is not an allowed origin"
+        )
+
+    parts = urlsplit(redirect_url)
+    origin = f"{parts.scheme}://{parts.netloc}".lower()
+    if parts.scheme not in ("http", "https") or not parts.netloc or origin not in allowed_origins:
+        raise HTTPException(
+            status_code=400, detail="redirect_url is not an allowed origin"
+        )
+
+    # Preserve path/query, drop any pre-existing fragment
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
 
 
 @router.get("/login")
@@ -27,23 +73,22 @@ async def login(
 ) -> RedirectResponse:
     """
     Initiate Strava OAuth2 authentication flow.
-    
+
     Generates a state token and redirects the user to Strava's
     authorization page. After authorization, Strava will redirect
-    back to the callback endpoint.
+    back to the callback endpoint. The redirect_url is validated
+    against the configured frontend origins (open-redirect guard).
     """
-    settings = get_settings()
-    
     # Generate state for CSRF protection
     state = secrets.token_urlsafe(32)
     _auth_states[state] = AuthState(
         state=state,
-        redirect_url=redirect_url or "http://localhost:3000",
+        redirect_url=_validate_redirect_url(redirect_url),
     )
-    
+
     # Build authorization URL
     auth_url = auth_service.get_authorization_url(state)
-    
+
     return RedirectResponse(url=auth_url, status_code=302)
 
 
@@ -56,66 +101,100 @@ async def callback(
 ) -> RedirectResponse:
     """
     Handle OAuth2 callback from Strava.
-    
+
     Exchanges the authorization code for access and refresh tokens,
-    then creates a JWT session token and redirects to the frontend.
+    then creates a JWT session token and redirects to the frontend with
+    the token in the URL hash fragment (kept out of server logs/history).
     """
     # Verify state
     auth_state = _auth_states.pop(state, None)
     if not auth_state:
         raise HTTPException(status_code=400, detail="Invalid or expired state token")
-    
+
+    # Defense in depth: re-check the stored redirect target against the
+    # origin allowlist before a token is ever attached to it
+    safe_redirect_url = _validate_redirect_url(auth_state.redirect_url)
+
     try:
         # Exchange code for tokens
         token_data = await auth_service.exchange_code(code)
-        
+
         # Create JWT session
         jwt_token = auth_service.create_jwt_token(token_data)
-        
-        # Redirect to frontend with token
-        redirect_url = f"{auth_state.redirect_url}?token={jwt_token}"
+
+        # Redirect to frontend with token in the hash fragment (not query string)
+        redirect_url = f"{safe_redirect_url}#token={jwt_token}"
         return RedirectResponse(url=redirect_url, status_code=302)
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
 
 
-class RefreshTokenRequest(BaseModel):
-    """Request body for token refresh."""
-    refresh_token: str
-
-
-@router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(
-    request: RefreshTokenRequest,
+@router.post("/refresh", response_model=SessionTokenResponse)
+async def refresh_session(
+    request: SessionRefreshRequest,
     auth_service: StravaAuthService = Depends(get_strava_auth_service),
-) -> TokenResponse:
+) -> SessionTokenResponse:
     """
-    Refresh an expired access token using the refresh token.
-    
-    Returns a new access token and optionally a new refresh token.
+    Refresh a KOMHunter session: JWT in, JWT out.
+
+    The JWT signature is always verified, but the ``exp`` check is disabled
+    so a session whose JWT lapsed can still be renewed via the embedded
+    Strava refresh token. No raw Strava tokens are ever returned.
     """
+    settings = get_settings()
+
     try:
-        token_data = await auth_service.refresh_access_token(request.refresh_token)
-        return TokenResponse(
-            access_token=token_data["access_token"],
-            refresh_token=token_data.get("refresh_token", request.refresh_token),
-            expires_at=token_data["expires_at"],
-            token_type="Bearer",
+        payload = jwt.decode(
+            request.token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},
         )
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token refresh failed: {str(e)}")
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session - please log in with Strava again",
+        )
+
+    try:
+        token_data = await auth_service.refresh_access_token(payload["refresh_token"])
+    except httpx.HTTPStatusError:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session - please log in with Strava again",
+        )
+    except httpx.RequestError:
+        raise HTTPException(
+            status_code=503,
+            detail="Strava is unreachable - try again later",
+        )
+
+    # refresh_token is optional in RFC 6749 refresh responses
+    token_data.setdefault("refresh_token", payload["refresh_token"])
+
+    # Refresh responses have no "athlete" object: preserve the original subject
+    new_jwt = auth_service.create_jwt_token(token_data, athlete_id=payload["sub"])
+    return SessionTokenResponse(token=new_jwt)
 
 
-@router.get("/me")
-async def get_current_user(
+@router.get("/me", response_model=SessionInfoResponse)
+async def get_session_info(
+    payload: Dict[str, Any] = Depends(get_token_payload),
     auth_service: StravaAuthService = Depends(get_strava_auth_service),
-    # TODO: Add JWT token dependency
-):
+) -> SessionInfoResponse:
     """
-    Get the current authenticated user's profile.
-    
-    Returns the athlete information from Strava.
+    Get information about the current session.
+
+    Reads the verified JWT payload. If the embedded Strava token is stale,
+    ``get_token_payload`` transparently refreshes it (one Strava call) and
+    surfaces the new session JWT via ``X-KOM-Refreshed-Token``.
     """
-    # This will be implemented with proper JWT authentication
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    return SessionInfoResponse(
+        athlete_id=payload["sub"],
+        strava_token_expires_at=payload["expires_at"],
+        session_expires_at=payload["exp"],
+        strava_token_expired=auth_service.is_token_expired(payload["expires_at"]),
+    )
