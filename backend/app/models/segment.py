@@ -64,7 +64,10 @@ class SegmentSummary(BaseModel):
     end_latlng: List[float] = Field(..., description="End coordinates [lat, lng]")
     climb_category: int = Field(0, description="Climb category (0-5)")
     difficulty_score: float = Field(0, description="Calculated difficulty score")
-    
+    activity_type: Optional[str] = Field(
+        None, description="Sport for this segment (riding/running)"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -77,6 +80,7 @@ class SegmentSummary(BaseModel):
                 "end_latlng": [40.0089, -105.2890],
                 "climb_category": 3,
                 "difficulty_score": 42.5,
+                "activity_type": "riding",
             }
         }
 
@@ -120,12 +124,16 @@ class SegmentDetails(BaseModel):
         description="Detailed difficulty breakdown"
     )
     kom: Optional[KOMData] = Field(None, description="KOM/QOM data")
-    
+    activity_type: Optional[str] = Field(
+        None, description="Sport for this segment (riding/running)"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
                 "id": 12345678,
                 "name": "Flagstaff Super Climb",
+                "activity_type": "riding",
                 "distance": 5200,
                 "avg_grade": 8.1,
                 "max_grade": 15.2,

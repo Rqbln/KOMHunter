@@ -9,12 +9,11 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Secrets (STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET / JWT_SECRET_KEY) are
+      # supplied by env_file (./backend/.env), not interpolated from the host
+      # shell. JWT_SECRET_KEY is validated at app startup (placeholders fail).
       - DEBUG=true
-      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
-      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REDIRECT_URI=http://localhost:8000/api/auth/callback
-      # No fallback on purpose: fail loudly if JWT_SECRET_KEY is not provided
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set (e.g. openssl rand -hex 32)}
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
     env_file:
       - ./backend/.env

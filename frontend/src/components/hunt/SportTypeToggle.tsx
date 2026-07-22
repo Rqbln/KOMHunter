@@ -46,7 +46,7 @@ export function SportTypeToggle({ value, onChange }: SportTypeToggleProps) {
           }`}
         >
           <span className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">pedal_bike</span>
+            <span className="material-symbols-outlined text-lg">directions_bike</span>
             Ride
           </span>
           <input

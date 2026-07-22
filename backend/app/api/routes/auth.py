@@ -6,6 +6,7 @@ raw Strava tokens stay server-side, embedded in the signed JWT payload.
 """
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit, urlunsplit
+import logging
 import secrets
 
 import httpx
@@ -25,6 +26,8 @@ from app.api.dependencies import get_strava_auth_service, get_token_payload
 
 router = APIRouter()
 
+logger = logging.getLogger(__name__)
+
 # In-memory state storage (use Redis in production)
 _auth_states: dict[str, AuthState] = {}
 
@@ -43,11 +46,19 @@ def _validate_redirect_url(redirect_url: Optional[str]) -> str:
     ``#token=`` fragment appended later is never ambiguous.
     """
     settings = get_settings()
-    allowed_origins = {o.rstrip("/").lower() for o in settings.cors_origins_list}
+    # Drop blank entries so an empty/misconfigured CORS_ORIGINS cannot yield an
+    # empty allowlist (and never IndexErrors on the default-origin branch below).
+    configured_origins = [o.rstrip("/") for o in settings.cors_origins_list if o.strip()]
+    if not configured_origins:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfiguration: no allowed origins configured",
+        )
+    allowed_origins = {o.lower() for o in configured_origins}
 
     if not redirect_url:
         # Default to the first configured frontend origin
-        return settings.cors_origins_list[0].rstrip("/")
+        return configured_origins[0]
 
     # Browsers treat "\" as "/" in URLs but urlsplit does not — reject outright
     if "\\" in redirect_url:
@@ -128,8 +139,9 @@ async def callback(
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+    except Exception:
+        logger.exception("OAuth callback failed during code exchange / session mint")
+        raise HTTPException(status_code=400, detail="Authentication failed")
 
 
 @router.post("/refresh", response_model=SessionTokenResponse)
@@ -161,7 +173,21 @@ async def refresh_session(
 
     try:
         token_data = await auth_service.refresh_access_token(payload["refresh_token"])
-    except httpx.HTTPStatusError:
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 429:
+            # Rate limited upstream: not an auth failure — keep the session
+            raise HTTPException(
+                status_code=429,
+                detail="Strava rate limit exceeded - try again later",
+            )
+        if status >= 500:
+            # Strava outage: keep the session so the frontend can retry
+            raise HTTPException(
+                status_code=503,
+                detail="Strava is unreachable - try again later",
+            )
+        # 400/401/403: the refresh token itself is invalid — end the session
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired session - please log in with Strava again",

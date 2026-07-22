@@ -39,26 +39,22 @@ async function fetchAPI<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
-  
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  
-  // Merge existing headers if any
-  if (options.headers) {
-    const existingHeaders = options.headers as Record<string, string>;
-    Object.assign(headers, existingHeaders);
+
+  // Normalize caller-supplied headers (may be a Headers, a [k,v][] or a record)
+  const headers = new Headers(options.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
-  
+
   // Add auth token if available
-  const token = typeof window !== "undefined" 
-    ? localStorage.getItem("kom_token") 
+  const token = typeof window !== "undefined"
+    ? localStorage.getItem("kom_token")
     : null;
-  
+
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.set("Authorization", `Bearer ${token}`);
   }
-  
+
   const response = await fetch(url, {
     ...options,
     headers,
@@ -110,7 +106,9 @@ export const auth = {
   },
 
   /**
-   * Get current session info (no Strava network call)
+   * Get current session info. The backend may transparently refresh a
+   * near-expiry Strava token while serving this request, returning a
+   * re-minted session JWT via the X-KOM-Refreshed-Token header.
    */
   async me(): Promise<SessionInfo> {
     return fetchAPI("/api/auth/me");

@@ -5,6 +5,7 @@ Uses Pydantic Settings for environment variable management.
 from functools import lru_cache
 from typing import Optional
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +47,28 @@ class Settings(BaseSettings):
     # Cache
     cache_ttl_seconds: int = 300  # 5 minutes
     
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def _reject_placeholder_jwt_secret(cls, value: str) -> str:
+        """
+        Fail fast at settings load if the JWT signing key is missing or is
+        still the insecure placeholder. A weak/known key lets anyone forge
+        session JWTs (and the Strava tokens embedded in them), so this must
+        never silently fall back to a default in any environment.
+        """
+        if value is None or not value.strip():
+            raise ValueError(
+                "JWT_SECRET_KEY must be set to a strong secret "
+                "(e.g. `openssl rand -hex 32`)."
+            )
+        lowered = value.lower()
+        if "change" in lowered or "your-secret" in lowered:
+            raise ValueError(
+                "JWT_SECRET_KEY is set to a placeholder value; generate a real "
+                "secret (e.g. `openssl rand -hex 32`) before starting the app."
+            )
+        return value
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins from comma-separated string."""

@@ -77,7 +77,21 @@ async def get_token_payload(
     if auth_service.is_token_expired(payload["expires_at"]):
         try:
             token_data = await auth_service.refresh_access_token(payload["refresh_token"])
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429:
+                # Rate limited upstream: not an auth failure — keep the session
+                raise HTTPException(
+                    status_code=429,
+                    detail="Strava rate limit exceeded - try again later",
+                )
+            if status >= 500:
+                # Strava outage: keep the session so the frontend can retry
+                raise HTTPException(
+                    status_code=503,
+                    detail="Strava is unreachable - try again later",
+                )
+            # 400/401/403: the refresh token itself is invalid — end the session
             raise HTTPException(
                 status_code=401,
                 detail="Invalid or expired session - please log in with Strava again",

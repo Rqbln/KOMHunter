@@ -1,6 +1,7 @@
 """
 Athlete profile and statistics endpoints.
 """
+import logging
 from typing import List, Optional
 
 import httpx
@@ -24,6 +25,8 @@ from app.api.errors import map_strava_error
 from app.utils.formatters import format_seconds_to_time
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 def parse_activity_totals(data: Optional[dict]) -> Optional[ActivityTotals]:
@@ -71,8 +74,9 @@ async def get_my_profile(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get athlete profile: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get athlete profile")
+        raise HTTPException(status_code=500, detail="Failed to get athlete profile")
 
 
 @router.get("/me/stats", response_model=AthleteStats)
@@ -107,8 +111,9 @@ async def get_my_stats(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get athlete stats: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get athlete stats")
+        raise HTTPException(status_code=500, detail="Failed to get athlete stats")
 
 
 @router.get("/me/koms", response_model=KOMsResponse)
@@ -162,8 +167,9 @@ async def get_my_koms(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get KOMs: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get KOMs")
+        raise HTTPException(status_code=500, detail="Failed to get KOMs")
 
 
 @router.get("/me/starred", response_model=StarredSegmentsResponse)
@@ -210,8 +216,9 @@ async def get_my_starred_segments(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get starred segments: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get starred segments")
+        raise HTTPException(status_code=500, detail="Failed to get starred segments")
 
 
 @router.get("/me/prs", response_model=PRsResponse)
@@ -273,5 +280,6 @@ async def get_my_prs(
         raise
     except httpx.HTTPStatusError as e:
         raise map_strava_error(e) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get PRs: {str(e)}")
+    except Exception:
+        logger.exception("Failed to get PRs")
+        raise HTTPException(status_code=500, detail="Failed to get PRs")

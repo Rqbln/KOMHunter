@@ -183,6 +183,40 @@ class TestTransparentRefresh:
         )
 
     @respx.mock
+    def test_strava_refresh_rate_limited_returns_429_not_401(
+        self, client: TestClient, expired_strava_jwt: str
+    ):
+        """A Strava 429 during refresh must surface as 429 and keep the session
+        (never log the user out)."""
+        respx.post(STRAVA_TOKEN_URL).mock(
+            return_value=httpx.Response(429, json={"message": "Rate Limit Exceeded"})
+        )
+        response = client.get(
+            "/api/athletes/me",
+            headers={"Authorization": f"Bearer {expired_strava_jwt}"},
+        )
+        assert response.status_code == 429
+        assert (
+            response.json()["detail"]
+            == "Strava rate limit exceeded - try again later"
+        )
+
+    @respx.mock
+    def test_strava_refresh_server_error_returns_503_not_401(
+        self, client: TestClient, expired_strava_jwt: str
+    ):
+        """A Strava 5xx during refresh must surface as 503 and keep the session."""
+        respx.post(STRAVA_TOKEN_URL).mock(
+            return_value=httpx.Response(500, json={"message": "Server Error"})
+        )
+        response = client.get(
+            "/api/athletes/me",
+            headers={"Authorization": f"Bearer {expired_strava_jwt}"},
+        )
+        assert response.status_code == 503
+        assert response.json()["detail"] == "Strava is unreachable - try again later"
+
+    @respx.mock
     def test_strava_network_failure_returns_503_not_401(
         self, client: TestClient, expired_strava_jwt: str
     ):

@@ -5,7 +5,8 @@
  */
 
 import type { SegmentSummary } from "@/types";
-import { formatDistance, formatGrade, formatElevation } from "@/lib/utils";
+import { formatGrade } from "@/lib/utils";
+import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 
 interface SegmentRowProps {
   segment: SegmentSummary;
@@ -47,9 +48,19 @@ export function SegmentRow({ segment, rank, onClick }: SegmentRowProps) {
             )}
           </div>
           <div>
-            <p className="text-sm font-bold group-hover:text-primary transition-colors">
-              {segment.name}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-bold group-hover:text-primary transition-colors">
+                {segment.name}
+              </p>
+              <span
+                className="material-symbols-outlined text-sm leading-none"
+                style={{ color: sportColorVar(segment.activity_type) }}
+                title={sportLabel(segment.activity_type)}
+                aria-label={sportLabel(segment.activity_type)}
+              >
+                {sportIcon(segment.activity_type)}
+              </span>
+            </div>
             <p className="text-xs text-subtle-green">
               Cat {segment.climb_category || "NC"}
             </p>
