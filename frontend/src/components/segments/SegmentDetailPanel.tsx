@@ -158,18 +158,18 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
               </span>
             </div>
             
-            {/* Overall Score */}
+            {/* Terrain difficulty (headline) */}
             <div className="bg-border/30 rounded-xl p-4 mb-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-subtle-green">Score Global</span>
+                <span className="text-sm text-subtle-green">Difficulté du terrain</span>
                 <span className="text-3xl font-bold">
                   {segment.difficulty_breakdown?.normalized_score.toFixed(1) || segment.difficulty_score.toFixed(1)}
                 </span>
               </div>
               <div className="h-3 bg-border rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-green-500 via-yellow-500 via-orange-500 to-red-500"
-                  style={{ 
+                  style={{
                     width: `${segment.difficulty_breakdown?.normalized_score || segment.difficulty_score}%`,
                     transition: 'width 0.5s ease-out'
                   }}
@@ -179,31 +179,33 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
                 <span>Facile</span>
                 <span>Expert</span>
               </div>
+              <p className="text-xs text-subtle-green mt-2">
+                Basé uniquement sur le terrain
+                {segment.difficulty_breakdown?.activity_type === "running" ? " (course : dénivelé + pente ajustée)" : " (vélo : longueur × pente, pente max, altitude)"}.
+              </p>
             </div>
-            
-            {/* Breakdown Bars */}
+
+            {/* Independent context metrics — NOT part of the difficulty */}
             {segment.difficulty_breakdown && (
               <div className="space-y-4">
-                <DifficultyBar 
-                  label="Difficulté Physique (terrain, altitude)" 
-                  value={segment.difficulty_breakdown.physical_score}
-                  colorClass="bg-blue-500"
-                />
-                <DifficultyBar 
-                  label="Prestige (popularité, compétition)" 
+                <p className="text-xs text-subtle-green -mb-1">
+                  Contexte (n&apos;influence pas la difficulté)
+                </p>
+                <DifficultyBar
+                  label="Prestige (popularité)"
                   value={segment.difficulty_breakdown.prestige_score}
                   colorClass="bg-purple-500"
                 />
-                <DifficultyBar 
-                  label="Compétitivité (vitesse KOM)" 
+                <DifficultyBar
+                  label="Compétitivité (vitesse KOM)"
                   value={segment.difficulty_breakdown.competitiveness_score}
-                  colorClass="bg-orange-500"
+                  colorClass="bg-primary"
                 />
               </div>
             )}
-            
-            {/* Strava Category Points */}
-            {segment.difficulty_breakdown && segment.difficulty_breakdown.strava_category_points > 0 && (
+
+            {/* Strava Category Points (cycling climb category only) */}
+            {segment.difficulty_breakdown && segment.difficulty_breakdown.strava_category_points > 0 && segment.difficulty_breakdown.activity_type !== "running" && (
               <div className="mt-4 pt-4 border-t border-border">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-subtle-green">Score Catégorie Strava</span>

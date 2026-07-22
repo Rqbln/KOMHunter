@@ -29,6 +29,9 @@ export interface KOMData {
 }
 
 export interface DifficultyBreakdown {
+  // normalized_score (== physical_score) is terrain-only, sport-aware difficulty.
+  // prestige_score and competitiveness_score are INDEPENDENT context metrics,
+  // not summed into difficulty.
   raw_score: number;
   normalized_score: number;
   category: DifficultyCategory;
@@ -36,11 +39,8 @@ export interface DifficultyBreakdown {
   prestige_score: number;
   competitiveness_score: number;
   strava_category_points: number;
-  weights_used?: {
-    physical: number;
-    prestige: number;
-    competitiveness: number;
-  };
+  activity_type?: string;
+  weights_used?: null;
 }
 
 export interface SegmentDetails extends SegmentSummary {

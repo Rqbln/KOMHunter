@@ -1,125 +1,172 @@
 """
-Tests for segment scoring service.
+Tests for the terrain-first, sport-aware segment scoring service.
 """
 import pytest
 from app.services.scoring import ScoringService, DifficultyCategory
 
 
-class TestScoringService:
-    """Tests for ScoringService."""
-    
-    def test_compute_difficulty_basic(self, scoring_service: ScoringService):
-        """Test basic difficulty calculation."""
+class TestTerrainDifficulty:
+    """The headline difficulty score measures terrain only."""
+
+    def test_basic_positive(self, scoring_service: ScoringService):
         score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
+            distance_m=5000, elevation_gain=200, avg_grade=4.0
         )
         assert score > 0
         assert isinstance(score, float)
-    
-    def test_compute_difficulty_flat(self, scoring_service: ScoringService):
-        """Test difficulty for flat segment."""
-        score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=0,
-            avg_grade=0,
-        )
-        # Flat segments should have lower difficulty
-        steep_score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=400,
-            avg_grade=8.0,
-        )
-        assert score < steep_score
-    
-    def test_compute_difficulty_zero_distance(self, scoring_service: ScoringService):
-        """Test handling of zero distance: invalid segment scores 0.0."""
-        score = scoring_service.compute_difficulty(
-            distance_m=0,
-            elevation_gain=100,
-            avg_grade=5.0,
-        )
-        assert score == 0.0  # Invalid segment (no distance) -> no difficulty
 
-    def test_compute_difficulty_with_kom_speed(self, scoring_service: ScoringService):
-        """Test difficulty with KOM speed factor (unified semantics)."""
-        # Faster KOM = more competitive segment = HIGHER difficulty score
-        fast_kom_score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
-            kom_speed_kmh=40,
+    def test_flat_easier_than_steep(self, scoring_service: ScoringService):
+        flat = scoring_service.compute_difficulty(
+            distance_m=5000, elevation_gain=0, avg_grade=0
         )
-        slow_kom_score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
-            kom_speed_kmh=20,
+        steep = scoring_service.compute_difficulty(
+            distance_m=5000, elevation_gain=400, avg_grade=8.0
         )
-        assert fast_kom_score > slow_kom_score
-    
-    def test_compute_difficulty_with_effort_count(self, scoring_service: ScoringService):
-        """Test difficulty with effort count factor."""
-        # Few efforts = potentially easier KOM
-        few_efforts_score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
-            effort_count=50,
+        assert flat < steep
+
+    def test_zero_distance_is_invalid(self, scoring_service: ScoringService):
+        score = scoring_service.compute_difficulty(
+            distance_m=0, elevation_gain=100, avg_grade=5.0
         )
-        many_efforts_score = scoring_service.compute_difficulty(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
-            effort_count=15000,
-        )
-        assert few_efforts_score < many_efforts_score
-    
-    def test_normalize_score(self, scoring_service: ScoringService):
-        """Test score normalization to 0-100."""
-        normalized = scoring_service.normalize_score(50.0, max_score=100)
-        assert 0 <= normalized <= 100
-    
-    def test_normalize_score_zero(self, scoring_service: ScoringService):
-        """Test normalization of zero score."""
-        normalized = scoring_service.normalize_score(0)
-        assert normalized == 0
-    
-    def test_normalize_score_negative(self, scoring_service: ScoringService):
-        """Test normalization of negative score."""
-        normalized = scoring_service.normalize_score(-10)
-        assert normalized == 0
-    
-    def test_get_category_easy(self, scoring_service: ScoringService):
-        """Test easy category classification."""
-        category = scoring_service.get_category(15)
-        assert category == DifficultyCategory.EASY
-    
-    def test_get_category_moderate(self, scoring_service: ScoringService):
-        """Test moderate category classification."""
-        category = scoring_service.get_category(35)
-        assert category == DifficultyCategory.MODERATE
-    
-    def test_get_category_hard(self, scoring_service: ScoringService):
-        """Test hard category classification."""
-        category = scoring_service.get_category(60)
-        assert category == DifficultyCategory.HARD
-    
-    def test_get_category_expert(self, scoring_service: ScoringService):
-        """Test expert category classification."""
-        category = scoring_service.get_category(90)
-        assert category == DifficultyCategory.EXPERT
-    
-    def test_compute_full_score(self, scoring_service: ScoringService):
-        """Test full scoring with all components."""
+        assert score == 0.0
+
+    def test_short_popular_ramp_is_not_hard(self, scoring_service: ScoringService):
+        """
+        The old formula labelled the Côte de la Butte Montmartre (824 m, 6.1%)
+        'hard' purely because it is popular. Terrain-only difficulty must class
+        this uncategorized ramp as easy/moderate, regardless of popularity.
+        """
         result = scoring_service.compute_full_score(
-            distance_m=5000,
-            elevation_gain=200,
-            avg_grade=4.0,
+            distance_m=824,
+            elevation_gain=50,
+            avg_grade=6.1,
+            activity_type="riding",
+            max_grade=8.5,
+            effort_count=7636,      # very popular
+            athlete_count=3473,
+            kom_time_seconds=91,    # fast KOM
         )
-        
-        assert "raw_score" in result
-        assert "normalized_score" in result
-        assert "category" in result
+        assert result["normalized_score"] < 40
+        assert result["category"] in ("easy", "moderate")
+
+    def test_hors_categorie_climb_is_expert(self, scoring_service: ScoringService):
+        """A long HC climb (e.g. Alpe d'Huez ~13.8 km @ 8.1%) must be expert."""
+        score = scoring_service.compute_difficulty(
+            distance_m=13800, elevation_gain=1120, avg_grade=8.1,
+            activity_type="riding", max_grade=13.0,
+        )
+        assert score >= 75
+        assert scoring_service.get_category(score) == DifficultyCategory.EXPERT
+
+    def test_riding_vs_running_differ(self, scoring_service: ScoringService):
+        """Same profile scores differently per sport."""
+        ride = scoring_service.compute_difficulty(
+            distance_m=3000, elevation_gain=150, avg_grade=5.0, activity_type="riding"
+        )
+        run = scoring_service.compute_difficulty(
+            distance_m=3000, elevation_gain=150, avg_grade=5.0, activity_type="running"
+        )
+        assert ride != run
+
+    def test_max_grade_increases_difficulty(self, scoring_service: ScoringService):
+        base = scoring_service.compute_difficulty(
+            distance_m=4000, elevation_gain=280, avg_grade=7.0, activity_type="riding"
+        )
+        with_ramp = scoring_service.compute_difficulty(
+            distance_m=4000, elevation_gain=280, avg_grade=7.0,
+            activity_type="riding", max_grade=18.0,
+        )
+        assert with_ramp > base
+
+    def test_altitude_increases_difficulty(self, scoring_service: ScoringService):
+        low = scoring_service.compute_difficulty(
+            distance_m=6000, elevation_gain=420, avg_grade=7.0, activity_type="riding"
+        )
+        high = scoring_service.compute_difficulty(
+            distance_m=6000, elevation_gain=420, avg_grade=7.0,
+            activity_type="riding", elev_high=2400,
+        )
+        assert high > low
+
+    def test_bounds(self, scoring_service: ScoringService):
+        for grade in (-5, 0, 3, 8, 15):
+            score = scoring_service.compute_difficulty(
+                distance_m=10000, elevation_gain=500, avg_grade=grade,
+            )
+            assert 0 <= score <= 100
+
+
+class TestPrestigeAndCompetitiveness:
+    """Context scores are computed independently of terrain difficulty."""
+
+    def test_prestige_rises_with_popularity(self, scoring_service: ScoringService):
+        low = scoring_service.compute_prestige_score(effort_count=50, athlete_count=30)
+        high = scoring_service.compute_prestige_score(effort_count=15000, athlete_count=5000)
+        assert high > low
+        assert 0 <= low <= 100 and 0 <= high <= 100
+
+    def test_prestige_default_when_unknown(self, scoring_service: ScoringService):
+        assert scoring_service.compute_prestige_score() == 25.0
+
+    def test_competitiveness_rises_with_kom_speed(self, scoring_service: ScoringService):
+        # Faster KOM (shorter time over same distance) = more competitive.
+        fast = scoring_service.compute_competitiveness_score(
+            distance_m=5000, kom_time_seconds=450, avg_grade=4.0  # 40 km/h
+        )
+        slow = scoring_service.compute_competitiveness_score(
+            distance_m=5000, kom_time_seconds=900, avg_grade=4.0  # 20 km/h
+        )
+        assert fast > slow
+
+    def test_competitiveness_default_when_unknown(self, scoring_service: ScoringService):
+        assert scoring_service.compute_competitiveness_score(distance_m=5000) == 40.0
+
+    def test_prestige_does_not_change_difficulty(self, scoring_service: ScoringService):
+        """The headline difficulty must be identical regardless of popularity."""
+        unpopular = scoring_service.compute_full_score(
+            distance_m=5000, elevation_gain=350, avg_grade=7.0, activity_type="riding",
+            effort_count=10, athlete_count=5, kom_time_seconds=900,
+        )
+        popular = scoring_service.compute_full_score(
+            distance_m=5000, elevation_gain=350, avg_grade=7.0, activity_type="riding",
+            effort_count=50000, athlete_count=20000, kom_time_seconds=450,
+        )
+        assert unpopular["normalized_score"] == popular["normalized_score"]
+        assert popular["prestige_score"] > unpopular["prestige_score"]
+        assert popular["competitiveness_score"] > unpopular["competitiveness_score"]
+
+
+class TestCategories:
+    def test_easy(self, scoring_service: ScoringService):
+        assert scoring_service.get_category(15) == DifficultyCategory.EASY
+
+    def test_moderate(self, scoring_service: ScoringService):
+        assert scoring_service.get_category(35) == DifficultyCategory.MODERATE
+
+    def test_hard(self, scoring_service: ScoringService):
+        assert scoring_service.get_category(60) == DifficultyCategory.HARD
+
+    def test_expert(self, scoring_service: ScoringService):
+        assert scoring_service.get_category(90) == DifficultyCategory.EXPERT
+
+
+class TestFullScoreShape:
+    def test_full_score_keys(self, scoring_service: ScoringService):
+        result = scoring_service.compute_full_score(
+            distance_m=5000, elevation_gain=200, avg_grade=4.0, activity_type="riding"
+        )
+        for key in (
+            "raw_score", "normalized_score", "category", "physical_score",
+            "prestige_score", "competitiveness_score", "strava_category_points",
+            "activity_type",
+        ):
+            assert key in result
         assert result["category"] in ["easy", "moderate", "hard", "expert"]
+        # physical_score is the terrain difficulty (headline), by design
+        assert result["physical_score"] == result["normalized_score"]
+        assert result["activity_type"] == "riding"
+
+    def test_normalize_score_helper(self, scoring_service: ScoringService):
+        assert 0 <= scoring_service.normalize_score(50.0) <= 100
+        assert scoring_service.normalize_score(0) == 0
+        assert scoring_service.normalize_score(-10) == 0
