@@ -267,9 +267,27 @@ class SegmentExploreRequest(BaseModel):
 
 class SegmentExploreResponse(BaseModel):
     """Response from segment exploration."""
-    
+
     segments: List[SegmentSummary] = Field(..., description="List of discovered segments")
     total_count: int = Field(..., description="Total number of segments found")
     center_lat: float = Field(..., description="Search center latitude")
     center_lon: float = Field(..., description="Search center longitude")
     radius_km: float = Field(..., description="Search radius used")
+
+
+class GeocodingResult(BaseModel):
+    """A single geocoding/autocomplete suggestion from Nominatim."""
+
+    latitude: float = Field(..., description="Latitude in decimal degrees")
+    longitude: float = Field(..., description="Longitude in decimal degrees")
+    display_name: str = Field(..., description="Human-readable place name")
+    type: str = Field(..., description="Nominatim place type (city, town, ...)")
+
+
+class GeocodeResponse(BaseModel):
+    """Response for GET /api/segments/geocode: a list of autocomplete suggestions."""
+
+    results: List[GeocodingResult] = Field(
+        default_factory=list,
+        description="Matching location suggestions (empty if none / blank query)",
+    )

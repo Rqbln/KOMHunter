@@ -17,6 +17,7 @@ from app.config import get_settings, Settings
 from app.services.strava_auth import StravaAuthService
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
+from app.services.geocoding import GeocodingService
 
 
 @lru_cache()
@@ -141,3 +142,15 @@ def get_strava_api_service(
 def get_scoring_service() -> ScoringService:
     """Get cached scoring service instance."""
     return ScoringService()
+
+
+@lru_cache()
+def get_geocoding_service() -> GeocodingService:
+    """
+    Get cached geocoding service instance.
+
+    Caching the instance (rather than building a fresh one per request) is what
+    keeps the service's in-memory ``_cache`` alive across calls, so repeated
+    autocomplete lookups for the same query avoid re-hitting Nominatim.
+    """
+    return GeocodingService()

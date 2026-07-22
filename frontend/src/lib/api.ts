@@ -13,6 +13,7 @@ import type {
   PRsResponse,
   HeatmapResponse,
   GeocodingResult,
+  GeocodeResponse,
   SessionTokenResponse,
   SessionInfo,
 } from "@/types";
@@ -209,10 +210,26 @@ export const athletes = {
  */
 export const geocoding = {
   /**
-   * Geocode a location string to coordinates
+   * Fetch autocomplete suggestions for a location string.
+   *
+   * The backend answers 200 with `{ results: GeocodingResult[] }` — an empty
+   * array for a blank query or no match, never a 4xx/5xx. This method reads the
+   * `results` array and NEVER throws: any error (network failure, or an
+   * unexpected non-200 that would make fetchAPI throw an ApiError) is swallowed
+   * and reported as no suggestions, so partial typing can never surface an
+   * error toast to the user.
    */
-  async geocode(query: string): Promise<GeocodingResult> {
-    return fetchAPI(`/api/segments/geocode?query=${encodeURIComponent(query)}`);
+  async suggest(query: string): Promise<GeocodingResult[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+    try {
+      const response = await fetchAPI<GeocodeResponse>(
+        `/api/segments/geocode?query=${encodeURIComponent(trimmed)}`
+      );
+      return response.results ?? [];
+    } catch {
+      return [];
+    }
   },
 };
 
