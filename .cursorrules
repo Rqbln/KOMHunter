@@ -1,0 +1,78 @@
+# KOMHunter Project Rules
+
+## Project Overview
+KOMHunter is a Strava segment discovery application that helps athletes find and analyze segments to conquer KOMs (King of the Mountain).
+
+## Architecture
+- **Backend**: FastAPI (Python 3.11+) with Pydantic v2
+- **Frontend**: Next.js 16 with TypeScript and TailwindCSS
+- **Auth**: OAuth2 with Strava, JWT sessions
+- **Map**: Leaflet
+
+## Code Standards
+
+### Python (Backend)
+- Use type hints everywhere
+- Use Pydantic models for all API schemas
+- Follow PEP 8 style guide
+- Use async/await for I/O operations
+- Handle errors with proper HTTP status codes
+- Document all endpoints with OpenAPI docstrings
+
+### TypeScript (Frontend)
+- Use strict TypeScript (`"strict": true`)
+- Define interfaces for all API responses
+- Use React Server Components where appropriate
+- Prefer named exports over default exports
+- Use custom hooks for data fetching
+
+### Security
+- Never commit secrets or API keys
+- Use environment variables for all credentials
+- Validate all user inputs
+- Implement rate limiting on API endpoints
+- Use HTTPS in production
+
+### Testing
+- Write unit tests for all services
+- Use pytest for backend tests
+- Use mocks for external API calls (Strava, Nominatim)
+- Maintain 80%+ code coverage
+- Test error handling paths
+
+## File Structure
+
+### Backend
+```
+backend/app/
+├── api/routes/     # FastAPI route handlers
+├── services/       # Business logic
+├── models/         # Pydantic schemas
+└── utils/          # Helper functions
+```
+
+### Frontend
+```
+frontend/src/
+├── app/           # Next.js app router
+├── components/    # React components
+├── hooks/         # Custom React hooks
+└── lib/           # Utilities and API client
+```
+
+## Naming Conventions
+- Python: snake_case for functions/variables, PascalCase for classes
+- TypeScript: camelCase for functions/variables, PascalCase for types/interfaces
+- Files: kebab-case for components, snake_case for Python modules
+- API routes: kebab-case (e.g., /api/segments/explore)
+
+## Dependencies
+- Always specify exact versions in requirements.txt
+- Use Bun for frontend package management (never npm)
+- Prefer well-maintained libraries with active communities
+
+## Documentation
+- Add docstrings to all Python functions
+- Add JSDoc comments to complex TypeScript functions
+- Keep README.md updated with setup instructions
+- Generate OpenAPI spec at /docs endpoint
