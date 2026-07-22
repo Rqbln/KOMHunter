@@ -4,6 +4,8 @@
  * Header component with navigation and user info
  */
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useStrava } from "@/hooks";
 
 interface HeaderProps {
@@ -11,14 +13,20 @@ interface HeaderProps {
   onOpenDashboard?: () => void;
 }
 
+const NAV_LINKS: { href: string; label: string }[] = [
+  { href: "/", label: "Explorer" },
+  { href: "/search", label: "Recherche" },
+];
+
 export function Header({ className, onOpenDashboard }: HeaderProps) {
-  const { athlete, isAuthenticated, login, logout } = useStrava();
+  const { athlete, isAuthenticated, login } = useStrava();
+  const pathname = usePathname();
 
   return (
     <header
       className={`flex items-center justify-between whitespace-nowrap border-b border-border px-6 py-3 bg-surface z-20 ${className}`}
     >
-      {/* Logo */}
+      {/* Logo + navigation */}
       <div className="flex items-center gap-4">
         <div className="size-8 flex items-center justify-center text-primary">
           <span className="material-symbols-outlined text-3xl">bolt</span>
@@ -26,6 +34,27 @@ export function Header({ className, onOpenDashboard }: HeaderProps) {
         <h2 className="text-xl font-bold leading-tight tracking-[-0.015em]">
           KOMHunter
         </h2>
+
+        {/* Primary navigation */}
+        <nav className="hidden md:flex items-center gap-1 ml-4">
+          {NAV_LINKS.map(({ href, label }) => {
+            const isActive = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? "page" : undefined}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-subtle-green hover:text-foreground hover:bg-border"
+                }`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Right side */}

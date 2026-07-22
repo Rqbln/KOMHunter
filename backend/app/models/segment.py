@@ -185,7 +185,23 @@ class SegmentExploreRequest(BaseModel):
         description="Type of activity (riding or running)"
     )
     max_segments: int = Field(50, ge=1, le=200, description="Maximum segments to return")
-    
+
+    # --- Advanced filters (all optional; omitting keeps current behavior) ---
+    min_cat: int = Field(0, ge=0, le=5, description="Minimum Strava climb category")
+    max_cat: int = Field(5, ge=0, le=5, description="Maximum Strava climb category")
+    min_grade: Optional[float] = Field(
+        None, description="Minimum average grade in percent (client-side filter)"
+    )
+    max_grade: Optional[float] = Field(
+        None, description="Maximum average grade in percent (client-side filter)"
+    )
+    min_distance_m: Optional[float] = Field(
+        None, description="Minimum distance in meters (client-side filter)"
+    )
+    max_distance_m: Optional[float] = Field(
+        None, description="Maximum distance in meters (client-side filter)"
+    )
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -194,6 +210,12 @@ class SegmentExploreRequest(BaseModel):
                 "radius_km": 25,
                 "activity_type": "riding",
                 "max_segments": 50,
+                "min_cat": 0,
+                "max_cat": 5,
+                "min_grade": 3.0,
+                "max_grade": 12.0,
+                "min_distance_m": 1000,
+                "max_distance_m": 20000,
             }
         }
 

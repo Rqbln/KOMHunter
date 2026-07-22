@@ -12,9 +12,22 @@ interface SidebarProps {
   className?: string;
   onStartHunt: (params: HuntParamsType) => void;
   isLoading?: boolean;
+  // Search center (shared with the map) — passed straight through to the form.
+  location: string;
+  latitude: number;
+  longitude: number;
+  onLocationChange: (location: string, lat: number, lon: number) => void;
 }
 
-export function Sidebar({ className, onStartHunt, isLoading }: SidebarProps) {
+export function Sidebar({
+  className,
+  onStartHunt,
+  isLoading,
+  location,
+  latitude,
+  longitude,
+  onLocationChange,
+}: SidebarProps) {
   const { logout, isAuthenticated } = useStrava();
 
   return (
@@ -33,7 +46,14 @@ export function Sidebar({ className, onStartHunt, isLoading }: SidebarProps) {
         </div>
 
         {/* Hunt Parameters Form */}
-        <HuntParameters onSubmit={onStartHunt} isLoading={isLoading} />
+        <HuntParameters
+          onSubmit={onStartHunt}
+          isLoading={isLoading}
+          location={location}
+          latitude={latitude}
+          longitude={longitude}
+          onLocationChange={onLocationChange}
+        />
       </div>
 
       {/* Sidebar Footer */}

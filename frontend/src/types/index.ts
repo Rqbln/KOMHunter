@@ -67,6 +67,15 @@ export interface SegmentExploreRequest {
   radius_km: number;
   activity_type: ActivityType;
   max_segments: number;
+  // Advanced filters (WS-A backend additions). All optional; when omitted the
+  // backend falls back to its own defaults (min_cat 0 / max_cat 5, no grade or
+  // distance bounds).
+  min_cat?: number;
+  max_cat?: number;
+  min_grade?: number;
+  max_grade?: number;
+  min_distance_m?: number;
+  max_distance_m?: number;
 }
 
 export interface SegmentExploreResponse {
@@ -206,6 +215,15 @@ export interface HuntParameters {
   sportType: ActivityType;
   radiusKm: number;
   maxSegments: number;
+  // Optional advanced filters (emitted by the detailed search form only). The
+  // simple explore form leaves these undefined. Climb categories use the Strava
+  // ordinal 0..5 (NC..HC); grade is percent; distance bounds are in kilometres.
+  minCat?: number;
+  maxCat?: number;
+  minGrade?: number;
+  maxGrade?: number;
+  minDistanceKm?: number;
+  maxDistanceKm?: number;
 }
 
 // Difficulty categories

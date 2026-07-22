@@ -106,6 +106,100 @@ class TestExploreSegments:
         scores = [s["difficulty_score"] for s in data["segments"]]
         assert scores == sorted(scores)
 
+    @respx.mock
+    def test_explore_forwards_cat_filters_to_strava(
+        self, client: TestClient, auth_headers: dict
+    ):
+        route = respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        payload = {**EXPLORE_REQUEST, "min_cat": 2, "max_cat": 4}
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        # The outgoing Strava request must carry the requested category bounds.
+        params = route.calls.last.request.url.params
+        assert params["min_cat"] == "2"
+        assert params["max_cat"] == "4"
+
+    @respx.mock
+    def test_explore_defaults_full_cat_range_to_strava(
+        self, client: TestClient, auth_headers: dict
+    ):
+        route = respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        response = client.post(
+            "/api/segments/explore", json=EXPLORE_REQUEST, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        params = route.calls.last.request.url.params
+        assert params["min_cat"] == "0"
+        assert params["max_cat"] == "5"
+
+    @respx.mock
+    def test_explore_grade_filter_drops_out_of_range(
+        self, client: TestClient, auth_headers: dict
+    ):
+        respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        # Segment 1 avg_grade=8.1 (kept), Segment 2 avg_grade=0.5 (dropped).
+        payload = {**EXPLORE_REQUEST, "min_grade": 5.0}
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+        assert [s["id"] for s in data["segments"]] == [1]
+
+    @respx.mock
+    def test_explore_distance_filter_drops_out_of_range(
+        self, client: TestClient, auth_headers: dict
+    ):
+        respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        # Segment 1 distance=5200 (dropped), Segment 2 distance=800 (kept).
+        payload = {**EXPLORE_REQUEST, "max_distance_m": 1000}
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 1
+        assert [s["id"] for s in data["segments"]] == [2]
+
+    @respx.mock
+    def test_explore_combined_grade_and_distance_filters(
+        self, client: TestClient, auth_headers: dict
+    ):
+        respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        # Bounds that both stored segments satisfy -> nothing dropped.
+        payload = {
+            **EXPLORE_REQUEST,
+            "min_grade": 0.0,
+            "max_grade": 10.0,
+            "min_distance_m": 500,
+            "max_distance_m": 6000,
+        }
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_count"] == 2
+        assert sorted(s["id"] for s in data["segments"]) == [1, 2]
+
     def test_explore_requires_auth(self, client: TestClient):
         response = client.post("/api/segments/explore", json=EXPLORE_REQUEST)
         assert response.status_code == 401
