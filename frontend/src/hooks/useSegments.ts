@@ -11,7 +11,15 @@ import type {
   SegmentExploreRequest,
   HuntParameters,
 } from "@/types";
-import { segments } from "@/lib/api";
+import { segments, ApiError } from "@/lib/api";
+
+/** Map API errors to user-facing messages (401 = expired session) */
+function toErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.status === 401) {
+    return "Session expired - log in with Strava again";
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 interface UseSegmentsReturn {
   segments: SegmentSummary[];
@@ -52,7 +60,7 @@ export function useSegments(): UseSegmentsReturn {
       setTotalCount(response.total_count);
     } catch (err) {
       console.error("Segment exploration failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to explore segments");
+      setError(toErrorMessage(err, "Failed to explore segments"));
       setSegmentList([]);
       setTotalCount(0);
     } finally {
@@ -69,7 +77,7 @@ export function useSegments(): UseSegmentsReturn {
       setSelectedSegment(details);
     } catch (err) {
       console.error("Failed to load segment details:", err);
-      setError(err instanceof Error ? err.message : "Failed to load segment details");
+      setError(toErrorMessage(err, "Failed to load segment details"));
     } finally {
       setIsLoadingDetails(false);
     }

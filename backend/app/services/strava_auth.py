@@ -4,7 +4,7 @@ Strava OAuth2 authentication service.
 Handles the complete OAuth2 flow including authorization URL generation,
 code exchange, and token refresh.
 """
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 import time
@@ -98,21 +98,29 @@ class StravaAuthService:
             response.raise_for_status()
             return response.json()
     
-    def create_jwt_token(self, token_data: Dict[str, Any]) -> str:
+    def create_jwt_token(
+        self,
+        token_data: Dict[str, Any],
+        athlete_id: Optional[str] = None,
+    ) -> str:
         """
         Create a JWT session token from Strava token data.
-        
+
         Args:
             token_data: Token response from Strava containing tokens and athlete info
-            
+            athlete_id: Explicit athlete ID to use as the JWT subject. Required
+                when token_data has no "athlete" object (Strava token *refresh*
+                responses don't include one) to preserve the original subject.
+
         Returns:
             Signed JWT token string
         """
         now = int(time.time())
         expire = now + (self.settings.jwt_expire_minutes * 60)
-        
-        # Extract athlete ID from token response
-        athlete_id = str(token_data.get("athlete", {}).get("id", "unknown"))
+
+        # Prefer the explicit athlete ID, else extract it from the token response
+        if athlete_id is None:
+            athlete_id = str(token_data.get("athlete", {}).get("id", "unknown"))
         
         payload = {
             "sub": athlete_id,

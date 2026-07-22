@@ -342,7 +342,14 @@ class ScoringService:
         """
         Legacy method - calculates a simple difficulty score.
         Use compute_unified_difficulty() for the full formula.
+
+        A non-positive distance denotes an invalid segment and returns 0.0
+        (no physical difficulty can be computed without a distance).
         """
+        # Invalid segment guard: distance is required for any meaningful score
+        if distance_m <= 0:
+            return 0.0
+
         # Convert kom_speed to time for unified formula
         kom_time_seconds = None
         if kom_speed_kmh and kom_speed_kmh > 0 and distance_m > 0:

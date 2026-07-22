@@ -186,11 +186,15 @@ export interface GeocodingResult {
 }
 
 // Auth types
-export interface TokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_at: number;
-  token_type: string;
+export interface SessionTokenResponse {
+  token: string;
+}
+
+export interface SessionInfo {
+  athlete_id: string;
+  strava_token_expires_at: number;
+  session_expires_at: number;
+  strava_token_expired: boolean;
 }
 
 // Hunt parameters

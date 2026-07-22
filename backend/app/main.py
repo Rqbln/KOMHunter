@@ -46,6 +46,8 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Let the browser read the transparently-refreshed session token
+        expose_headers=["X-KOM-Refreshed-Token"],
     )
     
     # Include routers
