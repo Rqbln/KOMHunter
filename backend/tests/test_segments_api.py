@@ -277,6 +277,22 @@ class TestSegmentDetails:
         assert 0 <= breakdown["normalized_score"] <= 100
 
     @respx.mock
+    def test_details_null_city_state_country_coerced(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """Strava sends null city/state/country for many segments — must not 500."""
+        payload = {**SEGMENT_DETAILS_RESPONSE, "city": None, "state": None, "country": None}
+        respx.get(STRAVA_SEGMENT_URL).mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        response = client.get("/api/segments/12345678", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["city"] == ""
+        assert data["state"] == ""
+        assert data["country"] == ""
+
+    @respx.mock
     def test_details_strava_401_maps_to_api_401(
         self, client: TestClient, auth_headers: dict
     ):

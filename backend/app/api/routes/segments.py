@@ -251,9 +251,12 @@ async def get_segment_details(
             start_latlng=segment_data.get("start_latlng", [0, 0]),
             end_latlng=segment_data.get("end_latlng", [0, 0]),
             climb_category=segment_data.get("climb_category", 0),
-            city=segment_data.get("city", ""),
-            state=segment_data.get("state", ""),
-            country=segment_data.get("country", ""),
+            # Strava sends city/state/country as null for many segments; the
+            # model wants strings, so coerce null -> "" (the key is present with
+            # value None, so .get(..., "") would still return None).
+            city=segment_data.get("city") or "",
+            state=segment_data.get("state") or "",
+            country=segment_data.get("country") or "",
             effort_count=effort_count,
             athlete_count=athlete_count,
             star_count=segment_data.get("star_count", 0),

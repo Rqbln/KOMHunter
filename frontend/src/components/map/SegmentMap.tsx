@@ -241,12 +241,20 @@ export function SegmentMap({
     }
 
     const addHeatLayer = async () => {
-      // Expose Leaflet globally so the plugin can extend it, then import it.
       // leaflet.heat has no module exports — it attaches `heatLayer`/`HeatLayer`
-      // onto the global `L`. This runs after the core leaflet import (guaranteed
-      // by the `!L` guard above), so `leaflet` is the same object the plugin
-      // mutates.
-      (window as unknown as { L: typeof leaflet }).L = leaflet;
+      // onto the Leaflet object it require()s. `leaflet` here is the ESM module
+      // NAMESPACE, which is sealed/non-extensible, so the plugin cannot add
+      // `heatLayer` to it. The real, extensible Leaflet object is the module's
+      // default export — augment (and later call) THAT.
+      const Lroot = (
+        (leaflet as unknown as { default?: typeof leaflet }).default ?? leaflet
+      ) as typeof leaflet & {
+        heatLayer: (
+          points: Array<[number, number, number]>,
+          options: Record<string, unknown>
+        ) => import("leaflet").Layer;
+      };
+      (window as unknown as { L: unknown }).L = Lroot;
       await import("leaflet.heat");
       if (cancelled || !mapInstanceRef.current) return;
 
@@ -260,7 +268,7 @@ export function SegmentMap({
         ([lat, lng]) => [lat, lng, 0.6] as [number, number, number]
       );
 
-      heatLayerRef.current = leaflet
+      heatLayerRef.current = Lroot
         .heatLayer(heatData, {
           radius: 18,
           blur: 22,
