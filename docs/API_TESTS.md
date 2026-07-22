@@ -1,13 +1,17 @@
 # KOMHunter API - Tests de Validation
 
+> ⚠️ **Document historique.** Les credentials qui figuraient ici ont été révoqués et rotatés.
+> Ne jamais committer de secrets réels : utiliser `backend/.env` (ignoré par git) et des
+> placeholders dans la documentation.
+
 ## Credentials Strava
 
 | Paramètre | Valeur |
 |-----------|--------|
-| Client ID | `155189` |
-| Client Secret | `7024e6f57e632f4266f2d95027a8a4e3f3a0c63d` |
-| Access Token | `44a46852141f5bb8ef14a44046e2d5cd00ca8e38` |
-| Refresh Token | `e57b0b86af0ef6ec0e87723b344d51842bc9af4e` |
+| Client ID | `<YOUR_STRAVA_CLIENT_ID>` |
+| Client Secret | `<YOUR_STRAVA_CLIENT_SECRET>` |
+| Access Token | `<YOUR_STRAVA_ACCESS_TOKEN>` |
+| Refresh Token | `<YOUR_STRAVA_REFRESH_TOKEN>` |
 | Scope | `read,read_all,profile:read_all,activity:read_all` (FULL) |
 | Expiration | ~6 heures après création |
 
@@ -205,8 +209,8 @@ Authorization: Bearer <token>
 
 ## Tokens de Test
 
-Pour les tests locaux, utiliser:
+Pour les tests locaux, utiliser vos propres tokens (jamais committés) :
 ```bash
-export STRAVA_ACCESS_TOKEN="44a46852141f5bb8ef14a44046e2d5cd00ca8e38"
-export STRAVA_REFRESH_TOKEN="e57b0b86af0ef6ec0e87723b344d51842bc9af4e"
+export STRAVA_ACCESS_TOKEN="<YOUR_STRAVA_ACCESS_TOKEN>"
+export STRAVA_REFRESH_TOKEN="<YOUR_STRAVA_REFRESH_TOKEN>"
 ```
