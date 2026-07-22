@@ -206,3 +206,18 @@ Manual acceptance run in a real browser (http://localhost:3000, backend on :8000
 - [ ] **Dashboard** — open the dashboard: athlete stats, KOMs, PRs, and starred segments load without errors.
 - [ ] **Logout** — log out: the UI returns to the unauthenticated state.
 - [ ] **Logged-out hunt** — while logged out, click "Start Hunt": the app shows the login CTA ("Log in with Strava to start hunting"), and NEVER a raw `Authorization header required` error (the original v1 bug).
+
+---
+
+## Wave 2 features checklist — 2026-07-22
+
+Manual acceptance for the feature wave (terrain-first scoring, `/search`, `/settings`, heatmap, bike/run differentiation). Run in a real browser, authenticated. Check each in order:
+
+- [ ] **Difficulty is terrain-first** — hunt an area with a short, popular urban ramp: its **difficulty** score reads easy/moderate (NOT "hard"), while its prestige/competitiveness may be high. Difficulty reflects terrain only, not popularity or KOM speed.
+- [ ] **Sport-aware scoring** — the same location scored for "riding" vs "running" produces different difficulty values (climb-oriented vs grade-adjusted effort).
+- [ ] **Advanced search (`/search`)** — set climb-category, average-grade, and distance filters; submit: the results table respects the filters and is sortable.
+- [ ] **Clickable profile cards** — open the dashboard; click a KOM, PR, or starred card: the segment detail panel opens for that segment.
+- [ ] **Map-click recenter** — click a point on the map: the search recenters there; the "Ma position" button recenters on the browser geolocation.
+- [ ] **Training heatmap** — enable the heatmap overlay: your activity tracks render on the map; toggling the sport filter (ride/run) changes the points shown.
+- [ ] **Bike/run differentiation** — segments show sport icons and accents (orange for riding, blue for running).
+- [ ] **Settings persist (`/settings`)** — change default sport/radius and notification toggles, reload the page: the values are restored from localStorage.
