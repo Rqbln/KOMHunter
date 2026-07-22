@@ -554,10 +554,24 @@ class TestSegmentDetails:
 
 
 class TestGeocode:
-    """GET /api/segments/geocode (Nominatim upstream)"""
+    """GET /api/segments/geocode (Nominatim upstream) — autocomplete suggestions."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_geocoding_cache(self):
+        """
+        The geocoding service is an @lru_cache'd singleton, so its in-memory
+        ``_cache`` would otherwise leak between tests (a query mocked one way in
+        one test could return a cached value in another). Reset it around each
+        test so every case starts from a clean, network-backed state.
+        """
+        from app.api.dependencies import get_geocoding_service
+
+        get_geocoding_service.cache_clear()
+        yield
+        get_geocoding_service.cache_clear()
 
     @respx.mock
-    def test_geocode_success(self, client: TestClient):
+    def test_geocode_success_returns_results_list(self, client: TestClient):
         respx.get(NOMINATIM_URL).mock(
             return_value=httpx.Response(
                 200,
@@ -575,17 +589,91 @@ class TestGeocode:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["latitude"] == 48.8566
-        assert data["longitude"] == 2.3522
-        assert "Paris" in data["display_name"]
+        assert list(data.keys()) == ["results"]
+        assert len(data["results"]) == 1
+        first = data["results"][0]
+        assert first["latitude"] == 48.8566
+        assert first["longitude"] == 2.3522
+        assert "Paris" in first["display_name"]
+        assert first["type"] == "city"
 
     @respx.mock
-    def test_geocode_not_found_returns_404(self, client: TestClient):
+    def test_geocode_multiple_results(self, client: TestClient):
+        respx.get(NOMINATIM_URL).mock(
+            return_value=httpx.Response(
+                200,
+                json=[
+                    {
+                        "lat": "48.8566",
+                        "lon": "2.3522",
+                        "display_name": "Paris, France",
+                        "type": "city",
+                    },
+                    {
+                        "lat": "33.6617",
+                        "lon": "-95.5555",
+                        "display_name": "Paris, Texas, USA",
+                        "type": "city",
+                    },
+                    {
+                        "lat": "38.2098",
+                        "lon": "-84.2528",
+                        "display_name": "Paris, Kentucky, USA",
+                        "type": "town",
+                    },
+                ],
+            )
+        )
+        response = client.get(
+            "/api/segments/geocode", params={"query": "Paris-multi"}
+        )
+
+        assert response.status_code == 200
+        results = response.json()["results"]
+        assert len(results) == 3
+        assert all(
+            {"latitude", "longitude", "display_name", "type"} <= set(r)
+            for r in results
+        )
+        # Order preserved from Nominatim; lat/lon coerced to floats.
+        assert results[1]["latitude"] == 33.6617
+        assert results[2]["type"] == "town"
+
+    @respx.mock
+    def test_geocode_empty_query_returns_empty_results(self, client: TestClient):
+        route = respx.get(NOMINATIM_URL).mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        response = client.get("/api/segments/geocode", params={"query": ""})
+
+        assert response.status_code == 200
+        assert response.json() == {"results": []}
+        # A blank query must short-circuit and never reach Nominatim.
+        assert not route.called
+
+    @respx.mock
+    def test_geocode_no_match_returns_empty_results_not_404(
+        self, client: TestClient
+    ):
         respx.get(NOMINATIM_URL).mock(
             return_value=httpx.Response(200, json=[])
         )
         response = client.get(
             "/api/segments/geocode", params={"query": "zzz-nowhere-zzz"}
         )
-        assert response.status_code == 404
-        assert response.json()["detail"] == "Location not found"
+
+        assert response.status_code == 200
+        assert response.json() == {"results": []}
+
+    @respx.mock
+    def test_geocode_upstream_error_returns_empty_results(
+        self, client: TestClient
+    ):
+        respx.get(NOMINATIM_URL).mock(return_value=httpx.Response(500))
+        response = client.get(
+            "/api/segments/geocode", params={"query": "err-town"}
+        )
+
+        # A Nominatim failure degrades gracefully to an empty list, never 5xx.
+        assert response.status_code == 200
+        assert response.json() == {"results": []}

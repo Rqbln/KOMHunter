@@ -14,11 +14,17 @@ from app.models.segment import (
     SegmentSummary,
     DifficultyBreakdown,
     KOMData,
+    GeocodeResponse,
 )
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
+from app.services.geocoding import GeocodingService
 from app.services.enrichment import enrich_segments
-from app.api.dependencies import get_strava_api_service, get_scoring_service
+from app.api.dependencies import (
+    get_strava_api_service,
+    get_scoring_service,
+    get_geocoding_service,
+)
 from app.api.errors import map_strava_error
 # Re-exported here so ``segments.parse_time_to_seconds`` keeps working for
 # existing importers; the canonical definition lives in utils.formatters.
@@ -157,24 +163,20 @@ async def explore_segments(
         raise HTTPException(status_code=500, detail="Failed to explore segments")
 
 
-@router.get("/geocode")
+@router.get("/geocode", response_model=GeocodeResponse)
 async def geocode_location(
     query: str = Query(..., description="Location to geocode (city, address, etc.)"),
-) -> dict:
+    geocoding: GeocodingService = Depends(get_geocoding_service),
+) -> GeocodeResponse:
     """
-    Geocode a location string to coordinates.
-    
-    Uses Nominatim (OpenStreetMap) for geocoding.
+    Autocomplete a location string to a list of coordinate suggestions.
+
+    Uses Nominatim (OpenStreetMap). Always returns 200 with a ``results`` list:
+    a blank query, no match, or an upstream error yields ``{"results": []}``
+    (never 404/500), so partial typing never surfaces an error to the user.
     """
-    from app.services.geocoding import GeocodingService
-    
-    geocoding = GeocodingService()
-    result = await geocoding.geocode(query)
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="Location not found")
-    
-    return result
+    results = await geocoding.geocode_suggestions(query)
+    return GeocodeResponse(results=results)
 
 
 @router.get("/{segment_id}", response_model=SegmentDetails)

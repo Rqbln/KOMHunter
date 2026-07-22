@@ -244,6 +244,12 @@ export interface GeocodingResult {
   type: string;
 }
 
+// Response envelope for GET /api/segments/geocode. Always 200 with a `results`
+// array (possibly empty for a blank query or no match) — never 404/500.
+export interface GeocodeResponse {
+  results: GeocodingResult[];
+}
+
 // Auth types
 export interface SessionTokenResponse {
   token: string;
