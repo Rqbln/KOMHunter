@@ -5,6 +5,22 @@
 // Activity types
 export type ActivityType = "riding" | "running";
 
+// Sort options for explore/search results. Kept as a single shared union so the
+// request payload, the hunt params and the sort selector all agree. Semantics
+// (server-side): difficulty -> difficulty_score ASC (easiest terrain first);
+// distance -> distance ASC; grade -> avg_grade DESC (steepest first);
+// popularity -> prestige_score DESC (most famous first); competitiveness ->
+// competitiveness_score ASC (slowest KOM = easiest to win first); opportunity ->
+// opportunity DESC (famous AND winnable). Segments lacking enrichment data sort
+// LAST in every enriched sort.
+export type SegmentSortBy =
+  | "difficulty"
+  | "distance"
+  | "grade"
+  | "popularity"
+  | "competitiveness"
+  | "opportunity";
+
 // Segment types
 export interface SegmentSummary {
   id: number;
@@ -17,6 +33,15 @@ export interface SegmentSummary {
   climb_category: number;
   difficulty_score: number;
   activity_type?: string;
+  // Enrichment metrics (WS-A backend). Populated ONLY when the explore request
+  // used an enriched sort (popularity | competitiveness | opportunity), because
+  // they require a per-segment GET /segments/{id} detail fetch. For all other
+  // sorts they are absent/null and the UI hides the corresponding columns.
+  prestige_score?: number | null;
+  competitiveness_score?: number | null;
+  effort_count?: number | null;
+  athlete_count?: number | null;
+  kom_time?: string | null;
 }
 
 export interface KOMData {
@@ -76,6 +101,11 @@ export interface SegmentExploreRequest {
   max_grade?: number;
   min_distance_m?: number;
   max_distance_m?: number;
+  // Result ordering. Defaults to "difficulty" server-side when omitted. The
+  // enriched sorts (popularity | competitiveness | opportunity) trigger the
+  // backend to fetch per-segment detail and populate SegmentSummary's
+  // enrichment fields.
+  sort_by?: SegmentSortBy;
 }
 
 export interface SegmentExploreResponse {
@@ -243,6 +273,9 @@ export interface HuntParameters {
   maxGrade?: number;
   minDistanceKm?: number;
   maxDistanceKm?: number;
+  // Result ordering picked in the "Trier par" selector; maps onto
+  // SegmentExploreRequest.sort_by. Undefined falls back to "difficulty".
+  sortBy?: SegmentSortBy;
 }
 
 // Difficulty categories

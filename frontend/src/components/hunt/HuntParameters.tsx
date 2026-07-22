@@ -8,8 +8,13 @@ import { useState, useCallback } from "react";
 import { LocationInput } from "./LocationInput";
 import { SportTypeToggle } from "./SportTypeToggle";
 import { RadiusSlider } from "./RadiusSlider";
+import { SortSelector } from "./SortSelector";
 import { useSettings } from "@/hooks";
-import type { HuntParameters as HuntParamsType, ActivityType } from "@/types";
+import type {
+  HuntParameters as HuntParamsType,
+  ActivityType,
+  SegmentSortBy,
+} from "@/types";
 
 interface HuntParametersProps {
   onSubmit: (params: HuntParamsType) => void;
@@ -40,6 +45,7 @@ export function HuntParameters({
   const [sportOverride, setSportOverride] = useState<ActivityType | null>(null);
   const [radiusOverride, setRadiusOverride] = useState<number | null>(null);
   const [maxSegments, setMaxSegments] = useState(50);
+  const [sortBy, setSortBy] = useState<SegmentSortBy>("difficulty");
 
   const sportType = sportOverride ?? settings.defaultSport;
   const radiusKm = radiusOverride ?? settings.defaultRadiusKm;
@@ -52,8 +58,18 @@ export function HuntParameters({
       sportType,
       radiusKm,
       maxSegments,
+      sortBy,
     });
-  }, [location, latitude, longitude, sportType, radiusKm, maxSegments, onSubmit]);
+  }, [
+    location,
+    latitude,
+    longitude,
+    sportType,
+    radiusKm,
+    maxSegments,
+    sortBy,
+    onSubmit,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -90,6 +106,9 @@ export function HuntParameters({
           unit=""
           onChange={setMaxSegments}
         />
+
+        {/* Sort selector */}
+        <SortSelector value={sortBy} onChange={setSortBy} />
       </div>
 
       {/* Submit Button */}

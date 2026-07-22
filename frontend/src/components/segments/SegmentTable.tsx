@@ -7,6 +7,12 @@
  * clicking a header sorts by that column and toggles asc/desc, with an arrow
  * indicator. Sorting is controlled locally so both the home and search pages
  * benefit without extra wiring.
+ *
+ * When the results carry enrichment metrics (fetched via an enriched server
+ * sort — popularity | competitiveness | opportunity) two extra sortable columns
+ * appear, "Popularité" (prestige_score) and "Compétitivité"
+ * (competitiveness_score). They stay hidden otherwise so non-enriched results
+ * don't show empty columns. Segments missing the metric sort last.
  */
 
 import { useMemo, useState } from "react";
@@ -19,11 +25,25 @@ interface SegmentTableProps {
   onSegmentClick: (segmentId: number) => void;
 }
 
-type SortKey = "name" | "distance" | "elevation" | "grade" | "difficulty";
+type SortKey =
+  | "name"
+  | "distance"
+  | "elevation"
+  | "grade"
+  | "difficulty"
+  | "popularity"
+  | "competitiveness";
 type SortDirection = "asc" | "desc";
 
-/** Extract the comparable value for a given sort column. */
-function sortValue(segment: SegmentSummary, key: SortKey): number | string {
+/**
+ * Extract the comparable value for a given sort column. The enrichment columns
+ * (popularity / competitiveness) may be null when the result set was not
+ * fetched with an enriched sort; null is handled explicitly by the comparator.
+ */
+function sortValue(
+  segment: SegmentSummary,
+  key: SortKey
+): number | string | null {
   switch (key) {
     case "name":
       return segment.name.toLocaleLowerCase();
@@ -35,12 +55,18 @@ function sortValue(segment: SegmentSummary, key: SortKey): number | string {
       return segment.avg_grade;
     case "difficulty":
       return segment.difficulty_score;
+    case "popularity":
+      return segment.prestige_score ?? null;
+    case "competitiveness":
+      return segment.competitiveness_score ?? null;
   }
 }
 
 /**
  * Return a new array sorted by the given column/direction. Exported for reuse
- * and to keep the comparison logic testable in isolation.
+ * and to keep the comparison logic testable in isolation. Segments missing the
+ * comparable value (null — i.e. not enriched) always sort LAST, regardless of
+ * direction, matching the server-side "enrichment missing sorts last" contract.
  */
 export function sortSegments(
   segments: SegmentSummary[],
@@ -51,6 +77,9 @@ export function sortSegments(
   return [...segments].sort((a, b) => {
     const av = sortValue(a, key);
     const bv = sortValue(b, key);
+    if (av === null && bv === null) return 0;
+    if (av === null) return 1;
+    if (bv === null) return -1;
     if (typeof av === "string" && typeof bv === "string") {
       return av.localeCompare(bv) * factor;
     }
@@ -58,16 +87,21 @@ export function sortSegments(
   });
 }
 
-const COLUMNS: {
-  key: SortKey;
-  label: string;
-  align: "left" | "right";
-}[] = [
+type Column = { key: SortKey; label: string; align: "left" | "right" };
+
+/** Always-present terrain columns. */
+const BASE_COLUMNS: Column[] = [
   { key: "name", label: "Segment Name", align: "left" },
   { key: "distance", label: "Dist (km)", align: "right" },
   { key: "elevation", label: "Elev (m)", align: "right" },
   { key: "grade", label: "Grade", align: "right" },
   { key: "difficulty", label: "Difficulty", align: "left" },
+];
+
+/** Extra columns shown only when the results carry enrichment metrics. */
+const ENRICHMENT_COLUMNS: Column[] = [
+  { key: "popularity", label: "Popularité", align: "right" },
+  { key: "competitiveness", label: "Compétitivité", align: "right" },
 ];
 
 function SortableHeader({
@@ -134,6 +168,22 @@ export function SegmentTable({
     }
   };
 
+  // Show the popularity/competitiveness columns only when the current results
+  // were fetched with an enriched sort (any segment carries the metrics).
+  // Otherwise these fields are absent and empty columns would be noise.
+  const hasEnrichment = useMemo(
+    () =>
+      segments.some(
+        (s) => s.prestige_score != null || s.competitiveness_score != null
+      ),
+    [segments]
+  );
+
+  const columns = useMemo(
+    () => (hasEnrichment ? [...BASE_COLUMNS, ...ENRICHMENT_COLUMNS] : BASE_COLUMNS),
+    [hasEnrichment]
+  );
+
   const displayedSegments = useMemo(() => {
     if (!sortKey) return segments;
     return sortSegments(segments, sortKey, sortDirection);
@@ -185,7 +235,7 @@ export function SegmentTable({
           <table className="w-full text-left border-collapse">
             <thead className="bg-background/50 sticky top-0 z-10 backdrop-blur-sm">
               <tr>
-                {COLUMNS.map((col) => (
+                {columns.map((col) => (
                   <SortableHeader
                     key={col.key}
                     label={col.label}
@@ -206,6 +256,7 @@ export function SegmentTable({
                   key={segment.id}
                   segment={segment}
                   rank={index + 1}
+                  showEnrichment={hasEnrichment}
                   onClick={() => onSegmentClick(segment.id)}
                 />
               ))}

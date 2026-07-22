@@ -54,6 +54,36 @@ def format_time_to_seconds(time_str: str) -> int:
         raise ValueError(f"Invalid time format: {time_str}")
 
 
+def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
+    """
+    Parse a time string (mm:ss or hh:mm:ss) to seconds, tolerantly.
+
+    Unlike :func:`format_time_to_seconds` (which raises on bad input), this
+    returns ``None`` for missing or unparseable values so callers enriching
+    best-effort segment data never fail on a malformed KOM time.
+
+    Args:
+        time_str: Time string like "14:22" or "1:14:22"
+
+    Returns:
+        Time in seconds, or None if parsing fails
+    """
+    if not time_str:
+        return None
+
+    try:
+        parts = time_str.strip().split(":")
+        if len(parts) == 2:
+            minutes, seconds = int(parts[0]), int(parts[1])
+            return minutes * 60 + seconds
+        elif len(parts) == 3:
+            hours, minutes, seconds = int(parts[0]), int(parts[1]), int(parts[2])
+            return hours * 3600 + minutes * 60 + seconds
+        return None
+    except (ValueError, IndexError):
+        return None
+
+
 def format_distance(meters: float, unit: str = "km") -> str:
     """
     Format distance in meters to readable string.

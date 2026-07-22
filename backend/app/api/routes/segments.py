@@ -2,8 +2,7 @@
 Segment exploration and details endpoints.
 """
 import logging
-import re
-from typing import List, Optional
+from typing import Callable
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -18,41 +17,53 @@ from app.models.segment import (
 )
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
+from app.services.enrichment import enrich_segments
 from app.api.dependencies import get_strava_api_service, get_scoring_service
 from app.api.errors import map_strava_error
+# Re-exported here so ``segments.parse_time_to_seconds`` keeps working for
+# existing importers; the canonical definition lives in utils.formatters.
+from app.utils.formatters import parse_time_to_seconds
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
+# Sorts that require per-segment detail (effort/athlete counts, KOM time).
+_ENRICHED_SORTS = frozenset({"popularity", "competitiveness", "opportunity"})
 
-def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
-    """
-    Parse a time string (mm:ss or hh:mm:ss) to seconds.
-    
-    Args:
-        time_str: Time string like "14:22" or "1:14:22"
-        
-    Returns:
-        Time in seconds, or None if parsing fails
-    """
-    if not time_str:
-        return None
-    
-    try:
-        # Handle formats like "14:22" or "1:14:22"
-        parts = time_str.strip().split(":")
-        if len(parts) == 2:
-            # mm:ss format
-            minutes, seconds = int(parts[0]), int(parts[1])
-            return minutes * 60 + seconds
-        elif len(parts) == 3:
-            # hh:mm:ss format
-            hours, minutes, seconds = int(parts[0]), int(parts[1]), int(parts[2])
-            return hours * 3600 + minutes * 60 + seconds
-        return None
-    except (ValueError, IndexError):
-        return None
+
+def _sort_key_popularity(s: SegmentSummary):
+    """prestige DESC; segments lacking enrichment sort last."""
+    has = s.prestige_score is not None
+    return (0 if has else 1, -(s.prestige_score or 0.0))
+
+
+def _sort_key_competitiveness(s: SegmentSummary):
+    """competitiveness ASC (slowest KOM = easiest to win first); missing last."""
+    has = s.competitiveness_score is not None
+    return (0 if has else 1, s.competitiveness_score if has else 0.0)
+
+
+def _sort_key_opportunity(s: SegmentSummary):
+    """opportunity DESC = prestige * (1 - competitiveness/100); missing last."""
+    has = s.prestige_score is not None and s.competitiveness_score is not None
+    opportunity = (
+        s.prestige_score * (1 - s.competitiveness_score / 100.0) if has else 0.0
+    )
+    return (0 if has else 1, -opportunity)
+
+
+# sort_by -> key function. Non-enriched sorts never place a segment "last" for
+# missing data (their fields are always present), so a leading 0 keeps the key
+# shape uniform across all sorts.
+_SORT_KEYS: dict[str, Callable[[SegmentSummary], tuple]] = {
+    "difficulty": lambda s: (0, s.difficulty_score),   # easiest terrain first
+    "distance": lambda s: (0, s.distance),             # shortest first
+    "grade": lambda s: (0, -s.avg_grade),              # steepest first
+    "popularity": _sort_key_popularity,
+    "competitiveness": _sort_key_competitiveness,
+    "opportunity": _sort_key_opportunity,
+}
 
 
 @router.post("/explore", response_model=SegmentExploreResponse)
@@ -119,9 +130,16 @@ async def explore_segments(
                 )
             )
         
-        # Sort by difficulty (easiest first)
-        scored_segments.sort(key=lambda s: s.difficulty_score)
-        
+        # Enriched sorts (popularity/competitiveness/opportunity) need
+        # per-segment detail (effort/athlete counts, KOM time) that explore does
+        # not return; fetch it (bounded + cached) only for those sorts.
+        if request.sort_by in _ENRICHED_SORTS:
+            await enrich_segments(scored_segments, strava_service, scoring_service)
+
+        # Dispatch on sort_by (validated to the allowed set by the model).
+        # Segments missing enrichment data sort last in every enriched sort.
+        scored_segments.sort(key=_SORT_KEYS[request.sort_by])
+
         return SegmentExploreResponse(
             segments=scored_segments,
             total_count=len(scored_segments),
