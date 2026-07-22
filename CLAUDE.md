@@ -38,7 +38,7 @@ frontend/                     Next.js 16 + TypeScript + Tailwind, Bun, port 3000
     └── types/                Shared TypeScript interfaces
 ```
 
-Legacy note: root-level `app.py`, `strava_*.py`, `segment_scoring.py`, `requirements.txt` are the dead Streamlit prototype, scheduled for deletion. Never import from, extend, or document them.
+Legacy note: the original root-level Streamlit prototype (`app.py`, `strava_*.py`, `segment_scoring.py`, root `requirements.txt`) was removed in the v1 release. The app is now exclusively `backend/` (FastAPI) + `frontend/` (Next.js) — there is no root-level Python entrypoint.
 
 ## Commands
 
