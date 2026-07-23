@@ -53,11 +53,22 @@ export function useSegments(): UseSegmentsReturn {
         radius_km: params.radiusKm,
         activity_type: params.sportType,
         max_segments: params.maxSegments,
+        min_cat: params.minCat,
+        max_cat: params.maxCat,
       };
       // Only forward an ordering when the form picked one; omitted lets the
       // backend apply its "difficulty" default.
       if (params.sortBy) request.sort_by = params.sortBy;
       if (params.reliableOnly) request.reliable_only = true;
+      // Advanced filters: forward only when set. Distance bounds are entered in
+      // kilometres and sent to the backend in metres (same mapping the old
+      // /search buildRequest used).
+      if (params.minGrade !== undefined) request.min_grade = params.minGrade;
+      if (params.maxGrade !== undefined) request.max_grade = params.maxGrade;
+      if (params.minDistanceKm !== undefined)
+        request.min_distance_m = params.minDistanceKm * 1000;
+      if (params.maxDistanceKm !== undefined)
+        request.max_distance_m = params.maxDistanceKm * 1000;
 
       const response = await segments.explore(request);
       setSegmentList(response.segments);

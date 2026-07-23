@@ -4,6 +4,9 @@ Strava API service for segment and athlete data.
 Handles all interactions with the Strava REST API including
 segment exploration, details, and leaderboards.
 """
+import asyncio
+import logging
+import math
 from typing import Dict, Any, List, Optional
 
 import httpx
@@ -11,10 +14,18 @@ import httpx
 from app.utils.polyline import decode_polyline
 from app.utils.formatters import format_seconds_to_time
 
+logger = logging.getLogger(__name__)
+
+# Strava /segments/explore returns at most ~10 segments per bounding box, so to
+# retrieve more we tile the search area into a small grid of sub-boxes.
+_EXPLORE_PER_BOX = 10          # observed per-bbox cap from Strava
+_MAX_TILES_PER_SIDE = 4        # hard cap: 4x4 = 16 tiles (protect 100 req/15min)
+_TILE_CONCURRENCY = 5          # bounded concurrent explore calls
+
 
 class StravaAPIService:
     """Service for Strava API interactions."""
-    
+
     BASE_URL = "https://www.strava.com/api/v3"
     
     def __init__(self, access_token: str):
@@ -94,24 +105,88 @@ class StravaAPIService:
         Returns:
             List of segment summaries
         """
-        # Convert radius to approximate bounding box
-        # 1 degree latitude ≈ 111km
-        delta = radius_km / 111
+        # Convert radius to an approximate bounding box.
+        # 1 degree of latitude ≈ 111 km everywhere. Longitude degrees shrink with
+        # latitude (they converge at the poles), so a fixed lon delta would make
+        # the box far too wide away from the equator; divide by cos(lat) to keep
+        # the box roughly square in real-world distance.
+        lat_delta = radius_km / 111.0
+        lon_delta = radius_km / (111.0 * max(math.cos(math.radians(lat)), 0.01))
 
-        bounds = f"{lat - delta},{lon - delta},{lat + delta},{lon + delta}"
-
-        params = {
-            "bounds": bounds,
+        # Params shared by every tile call; only "bounds" differs per tile.
+        common_params = {
             "activity_type": activity_type.lower(),
             "min_cat": min_cat,
             "max_cat": max_cat,
         }
-        
-        response = await self._request("GET", "/segments/explore", params=params)
-        segments = response.get("segments", [])
-        
-        # Limit results
-        return segments[:max_segments] if len(segments) > max_segments else segments
+
+        # Small requests fit in a single bounding box — avoid needless calls.
+        if max_segments <= _EXPLORE_PER_BOX:
+            bounds = (
+                f"{lat - lat_delta},{lon - lon_delta},"
+                f"{lat + lat_delta},{lon + lon_delta}"
+            )
+            response = await self._request(
+                "GET", "/segments/explore", params={"bounds": bounds, **common_params}
+            )
+            segments = response.get("segments", [])
+            return segments[:max_segments]
+
+        # Tile the radius box into an N×N grid. N grows with the requested count
+        # but is hard-capped at 4 (=> at most 16 tiles) to protect the rate limit.
+        n = min(
+            _MAX_TILES_PER_SIDE,
+            max(1, math.ceil(math.sqrt(max_segments / _EXPLORE_PER_BOX))),
+        )
+
+        south = lat - lat_delta
+        west = lon - lon_delta
+        tile_lat = (2 * lat_delta) / n
+        tile_lon = (2 * lon_delta) / n
+
+        tile_bounds: List[str] = []
+        for i in range(n):
+            for j in range(n):
+                t_south = south + i * tile_lat
+                t_north = south + (i + 1) * tile_lat
+                t_west = west + j * tile_lon
+                t_east = west + (j + 1) * tile_lon
+                tile_bounds.append(f"{t_south},{t_west},{t_north},{t_east}")
+
+        logger.info(
+            "explore_segments: querying %d tiles (%dx%d grid) for max_segments=%d",
+            len(tile_bounds),
+            n,
+            n,
+            max_segments,
+        )
+
+        # Fire the per-tile explore calls concurrently under a bounded semaphore.
+        # Upstream errors (401/429/5xx) propagate so the route can map them.
+        semaphore = asyncio.Semaphore(_TILE_CONCURRENCY)
+
+        async def _fetch_tile(bounds: str) -> List[Dict[str, Any]]:
+            async with semaphore:
+                response = await self._request(
+                    "GET",
+                    "/segments/explore",
+                    params={"bounds": bounds, **common_params},
+                )
+                return response.get("segments", [])
+
+        tile_results = await asyncio.gather(
+            *(_fetch_tile(b) for b in tile_bounds)
+        )
+
+        # Merge, deduping by segment id (a segment can appear in adjacent tiles).
+        merged: Dict[Any, Dict[str, Any]] = {}
+        for segments in tile_results:
+            for segment in segments:
+                seg_id = segment.get("id")
+                if seg_id is not None and seg_id not in merged:
+                    merged[seg_id] = segment
+
+        return list(merged.values())[:max_segments]
     
     async def get_segment_details(self, segment_id: int) -> Dict[str, Any]:
         """

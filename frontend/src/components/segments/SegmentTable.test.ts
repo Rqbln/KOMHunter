@@ -1,5 +1,10 @@
 import { describe, it, expect } from "bun:test";
-import { sortSegments } from "./SegmentTable";
+import {
+  sortSegments,
+  filterSegments,
+  segmentsToCsv,
+  difficultyLabel,
+} from "./SegmentTable";
 import type { SegmentSummary } from "@/types";
 
 /** Build a minimal SegmentSummary, overriding only the fields under test. */
@@ -82,5 +87,97 @@ describe("sortSegments — enrichment columns (null sorts last)", () => {
     expect(
       sortSegments(segments, "competitiveness", "asc").map((s) => s.id)
     ).toEqual([2, 4, 1, 3]);
+  });
+});
+
+describe("filterSegments — client-side display filters", () => {
+  it("hides suspicious-KOM rows only when hideSuspicious is on", () => {
+    const segments = [
+      seg({ id: 1, kom_suspicious: true }),
+      seg({ id: 2, kom_suspicious: false }),
+      seg({ id: 3, kom_suspicious: null }),
+      seg({ id: 4 }), // undefined
+    ];
+    expect(
+      filterSegments(segments, {
+        hideSuspicious: false,
+        minDifficulty: 0,
+      }).map((s) => s.id)
+    ).toEqual([1, 2, 3, 4]);
+    expect(
+      filterSegments(segments, {
+        hideSuspicious: true,
+        minDifficulty: 0,
+      }).map((s) => s.id)
+    ).toEqual([2, 3, 4]);
+  });
+
+  it("drops rows below the minimum difficulty threshold", () => {
+    const segments = [
+      seg({ id: 1, difficulty_score: 10 }),
+      seg({ id: 2, difficulty_score: 50 }),
+      seg({ id: 3, difficulty_score: 90 }),
+    ];
+    expect(
+      filterSegments(segments, {
+        hideSuspicious: false,
+        minDifficulty: 50,
+      }).map((s) => s.id)
+    ).toEqual([2, 3]);
+  });
+
+  it("does not mutate the input array", () => {
+    const segments = [seg({ id: 1, difficulty_score: 10 })];
+    const before = segments.map((s) => s.id);
+    filterSegments(segments, { hideSuspicious: true, minDifficulty: 100 });
+    expect(segments.map((s) => s.id)).toEqual(before);
+  });
+});
+
+describe("difficultyLabel", () => {
+  it("buckets scores into Easy/Moderate/Hard/Expert", () => {
+    expect(difficultyLabel(0)).toBe("Easy");
+    expect(difficultyLabel(24)).toBe("Easy");
+    expect(difficultyLabel(25)).toBe("Moderate");
+    expect(difficultyLabel(49)).toBe("Moderate");
+    expect(difficultyLabel(50)).toBe("Hard");
+    expect(difficultyLabel(74)).toBe("Hard");
+    expect(difficultyLabel(75)).toBe("Expert");
+    expect(difficultyLabel(100)).toBe("Expert");
+  });
+});
+
+describe("segmentsToCsv", () => {
+  it("emits a header row and the requested columns with a Strava URL", () => {
+    const csv = segmentsToCsv([
+      seg({
+        id: 42,
+        name: "Col Test",
+        distance: 2500,
+        avg_grade: 7.25,
+        difficulty_score: 80,
+        prestige_score: 60,
+        competitiveness_score: 30,
+        kom_time: "5:00",
+      }),
+    ]);
+    const lines = csv.split("\r\n");
+    expect(lines[0]).toBe(
+      "name,distance_km,avg_grade,difficulty_score,category,prestige_score,competitiveness_score,kom_time,strava_url"
+    );
+    expect(lines[1]).toBe(
+      "Col Test,2.50,7.3,80,Expert,60,30,5:00,https://www.strava.com/segments/42"
+    );
+  });
+
+  it("leaves enrichment cells blank when absent and quotes commas", () => {
+    const csv = segmentsToCsv([
+      seg({ id: 7, name: "Foo, Bar", distance: 1000, difficulty_score: 10 }),
+    ]);
+    const line = csv.split("\r\n")[1];
+    // Name with a comma is quoted; missing prestige/competitiveness/kom blank.
+    expect(line).toBe(
+      '"Foo, Bar",1.00,5.0,10,Easy,,,,https://www.strava.com/segments/7'
+    );
   });
 });
