@@ -104,6 +104,15 @@ export function SegmentRow({
               >
                 {sportIcon(segment.activity_type)}
               </span>
+              {segment.kom_suspicious && (
+                <span
+                  className="material-symbols-outlined text-sm leading-none text-red-500"
+                  title="Temps KOM douteux (probable erreur GPS)"
+                  aria-label="Temps KOM douteux"
+                >
+                  warning
+                </span>
+              )}
             </div>
             <p className="text-xs text-subtle-green">
               Cat {segment.climb_category || "NC"}

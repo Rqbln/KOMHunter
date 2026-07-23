@@ -25,18 +25,23 @@ def _detail_body(
     kom: str,
     distance: float = 5000.0,
     average_grade: float = 5.0,
+    activity_type: str = "Ride",
+    athlete_pr_seconds: int | None = None,
 ) -> dict:
     """Minimal Strava segment-detail body sufficient for enrichment scoring."""
-    return {
+    body = {
         "id": segment_id,
         "name": f"Segment {segment_id}",
         "distance": distance,
         "average_grade": average_grade,
         "effort_count": effort_count,
         "athlete_count": athlete_count,
-        "activity_type": "Ride",
+        "activity_type": activity_type,
         "xoms": {"kom": kom, "qom": kom, "overall": kom},
     }
+    if athlete_pr_seconds is not None:
+        body["athlete_segment_stats"] = {"pr_elapsed_time": athlete_pr_seconds}
+    return body
 
 EXPLORE_REQUEST = {
     "latitude": 48.8566,
@@ -490,6 +495,77 @@ class TestExploreSortByEnrichment:
         assert d2.call_count == 0
 
 
+_SUSPICIOUS_EXPLORE = {
+    "segments": [
+        {  # legit run segment
+            "id": 20, "name": "Legit Run", "distance": 3000.0, "avg_grade": 4.0,
+            "elev_difference": 120.0, "start_latlng": [48.85, 2.35],
+            "end_latlng": [48.86, 2.36], "climb_category": 0,
+        },
+        {  # bogus: 490 m "run" with a 20 s KOM (~88 km/h)
+            "id": 21, "name": "Souvenir Seller Dodge", "distance": 490.0,
+            "avg_grade": 1.9, "elev_difference": 12.0, "start_latlng": [48.84, 2.34],
+            "end_latlng": [48.85, 2.35], "climb_category": 0,
+        },
+    ]
+}
+
+
+class TestKomPlausibilityAndReliable:
+    """Suspicious-KOM flagging, sort-last behaviour, and reliable_only filter."""
+
+    @pytest.fixture(autouse=True)
+    def _clear_cache(self):
+        enrichment_service._DETAIL_CACHE.clear()
+        yield
+        enrichment_service._DETAIL_CACHE.clear()
+
+    def _mock(self):
+        respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=_SUSPICIOUS_EXPLORE)
+        )
+        # seg 20: normal run KOM; seg 21: bogus 490 m / 20 s run KOM.
+        respx.get(_detail_url(20)).mock(return_value=httpx.Response(
+            200, json=_detail_body(20, effort_count=8000, athlete_count=3000,
+                                    kom="12:00", distance=3000.0, activity_type="Run")))
+        respx.get(_detail_url(21)).mock(return_value=httpx.Response(
+            200, json=_detail_body(21, effort_count=9000, athlete_count=3500,
+                                    kom="0:20", distance=490.0, activity_type="Run")))
+
+    @respx.mock
+    def test_suspicious_kom_sorts_last_even_with_high_prestige(
+        self, client: TestClient, auth_headers: dict
+    ):
+        self._mock()
+        response = client.post(
+            "/api/segments/explore",
+            json={**EXPLORE_REQUEST, "activity_type": "running", "sort_by": "popularity"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        segments = response.json()["segments"]
+        # seg 21 has HIGHER prestige but a bogus KOM -> forced last.
+        assert [s["id"] for s in segments] == [20, 21]
+        assert segments[-1]["kom_suspicious"] is True
+        assert segments[0]["kom_suspicious"] is False
+
+    @respx.mock
+    def test_reliable_only_drops_suspicious(
+        self, client: TestClient, auth_headers: dict
+    ):
+        self._mock()
+        response = client.post(
+            "/api/segments/explore",
+            json={**EXPLORE_REQUEST, "activity_type": "running",
+                  "sort_by": "difficulty", "reliable_only": True},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        segments = response.json()["segments"]
+        assert [s["id"] for s in segments] == [20]  # bogus seg 21 dropped
+        assert all(not s["kom_suspicious"] for s in segments)
+
+
 class TestSegmentDetails:
     """GET /api/segments/{segment_id}"""
 
@@ -521,6 +597,42 @@ class TestSegmentDetails:
         assert breakdown is not None
         assert breakdown["category"] in ("easy", "moderate", "hard", "expert")
         assert 0 <= breakdown["normalized_score"] <= 100
+
+    @respx.mock
+    def test_details_exposes_athlete_pr_gap(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """athlete_segment_stats.pr_elapsed_time surfaces as the athlete PR."""
+        payload = {**SEGMENT_DETAILS_RESPONSE, "athlete_segment_stats": {"pr_elapsed_time": 905}}
+        respx.get(STRAVA_SEGMENT_URL).mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        response = client.get("/api/segments/12345678", headers=auth_headers)
+        assert response.status_code == 200
+        kom = response.json()["kom"]
+        assert kom["athlete_pr_seconds"] == 905
+        assert kom["athlete_pr_time"] == "15:05"
+        assert kom["kom_suspicious"] is False
+
+    @respx.mock
+    def test_details_flags_suspicious_kom(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """A 490 m run with a 20 s KOM (~88 km/h) is flagged suspicious."""
+        payload = {
+            **SEGMENT_DETAILS_RESPONSE,
+            "distance": 490.0,
+            "activity_type": "Run",
+            "xoms": {"kom": "0:20", "qom": "0:25", "overall": "0:20"},
+        }
+        respx.get(STRAVA_SEGMENT_URL).mock(
+            return_value=httpx.Response(200, json=payload)
+        )
+        response = client.get("/api/segments/12345678", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["kom_suspicious"] is True
+        assert data["kom"]["kom_suspicious"] is True
 
     @respx.mock
     def test_details_null_city_state_country_coerced(

@@ -86,6 +86,13 @@ class SegmentSummary(BaseModel):
     kom_time: Optional[str] = Field(
         None, description="KOM time formatted mm:ss (from segment detail)"
     )
+    kom_suspicious: Optional[bool] = Field(
+        None,
+        description=(
+            "True when the KOM speed is physically implausible (likely a GPS "
+            "error); such segments sort last. Null until enrichment runs."
+        ),
+    )
 
     class Config:
         json_schema_extra = {
@@ -105,13 +112,14 @@ class SegmentSummary(BaseModel):
                 "effort_count": 15234,
                 "athlete_count": 4521,
                 "kom_time": "14:22",
+                "kom_suspicious": False,
             }
         }
 
 
 class KOMData(BaseModel):
     """KOM/QOM holder information."""
-    
+
     kom_time: Optional[str] = Field(None, description="KOM time formatted (mm:ss)")
     qom_time: Optional[str] = Field(None, description="QOM time formatted (mm:ss)")
     overall_time: Optional[str] = Field(None, description="Overall best time formatted (mm:ss)")
@@ -119,6 +127,19 @@ class KOMData(BaseModel):
     qom_time_seconds: Optional[int] = Field(None, description="QOM time in seconds")
     local_legend_name: Optional[str] = Field(None, description="Local legend athlete name")
     local_legend_efforts: Optional[str] = Field(None, description="Local legend effort count")
+    athlete_pr_seconds: Optional[int] = Field(
+        None,
+        description="Authenticated athlete's PR on this segment, in seconds "
+        "(from athlete_segment_stats.pr_elapsed_time)",
+    )
+    athlete_pr_time: Optional[str] = Field(
+        None,
+        description="Authenticated athlete's PR formatted (mm:ss / h:mm:ss)",
+    )
+    kom_suspicious: Optional[bool] = Field(
+        None,
+        description="True when the KOM speed is physically implausible (GPS error)",
+    )
 
 
 class SegmentDetails(BaseModel):
@@ -148,6 +169,10 @@ class SegmentDetails(BaseModel):
         description="Detailed difficulty breakdown"
     )
     kom: Optional[KOMData] = Field(None, description="KOM/QOM data")
+    kom_suspicious: Optional[bool] = Field(
+        None,
+        description="True when the KOM speed is physically implausible (GPS error)",
+    )
     activity_type: Optional[str] = Field(
         None, description="Sport for this segment (riding/running)"
     )
@@ -193,7 +218,11 @@ class SegmentDetails(BaseModel):
                     "kom_time_seconds": 862,
                     "local_legend_name": "Local Hero",
                     "local_legend_efforts": "52 efforts",
+                    "athlete_pr_seconds": 905,
+                    "athlete_pr_time": "15:05",
+                    "kom_suspicious": False,
                 },
+                "kom_suspicious": False,
             }
         }
 
@@ -244,6 +273,13 @@ class SegmentExploreRequest(BaseModel):
     )
     max_distance_m: Optional[float] = Field(
         None, description="Maximum distance in meters (client-side filter)"
+    )
+    reliable_only: bool = Field(
+        False,
+        description=(
+            "When true, enrich every candidate to learn KOM plausibility and "
+            "drop segments whose KOM time is physically implausible (GPS errors)."
+        ),
     )
 
     class Config:

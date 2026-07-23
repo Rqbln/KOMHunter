@@ -6,6 +6,7 @@
 
 import type { SegmentDetails, DifficultyBreakdown } from "@/types";
 import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
+import { formatTime, formatPacePerKm } from "@/lib/utils";
 
 interface SegmentDetailPanelProps {
   segment: SegmentDetails | null;
@@ -71,9 +72,35 @@ function getClimbCategoryLabel(category: number): string {
 export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPanelProps) {
   if (!segment) return null;
 
-  const categoryConfig = segment.difficulty_breakdown 
+  const categoryConfig = segment.difficulty_breakdown
     ? getCategoryConfig(segment.difficulty_breakdown.category)
     : getCategoryConfig("moderate");
+
+  // KOM-derived context. The suspicious flag may arrive at either the summary
+  // or the KOM level depending on how the segment was enriched.
+  const kom = segment.kom;
+  const komSuspicious =
+    segment.kom_suspicious ?? kom?.kom_suspicious ?? false;
+  const komSeconds = kom?.kom_time_seconds ?? null;
+  const prSeconds = kom?.athlete_pr_seconds ?? null;
+  const distanceKm = segment.distance / 1000;
+  const activityType =
+    segment.difficulty_breakdown?.activity_type ?? segment.activity_type;
+  const isRunning = activityType === "running";
+
+  // Your gap to the KOM (positive = you are that many seconds slower).
+  const gapSeconds =
+    prSeconds != null && komSeconds != null ? prSeconds - komSeconds : null;
+  const gapPercent =
+    gapSeconds != null && komSeconds ? (gapSeconds / komSeconds) * 100 : null;
+
+  // Pace/speed to hold over the whole segment to match the KOM.
+  const komPaceLabel =
+    komSeconds && distanceKm > 0
+      ? isRunning
+        ? formatPacePerKm(komSeconds / distanceKm)
+        : `${(distanceKm / (komSeconds / 3600)).toFixed(1)} km/h`
+      : null;
 
   return (
     <>
@@ -125,33 +152,94 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* KOM/QOM Section */}
-          {segment.kom && (
+          {kom && (
             <section className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4">
               <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-lg">emoji_events</span>
                 Records du Segment
               </h3>
+
+              {/* Suspicious-KOM warning */}
+              {komSuspicious && (
+                <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-300 bg-red-100 px-3 py-2 text-red-700">
+                  <span className="material-symbols-outlined text-base leading-none">warning</span>
+                  <p className="text-xs font-medium leading-snug">
+                    Temps KOM probablement erroné (GPS). À interpréter avec prudence.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
-                {segment.kom.kom_time && (
+                {kom.kom_time && (
                   <div className="bg-surface rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-primary">{segment.kom.kom_time}</p>
+                    <p
+                      className={`text-2xl font-bold ${
+                        komSuspicious
+                          ? "text-subtle-green/50 line-through decoration-red-400"
+                          : "text-primary"
+                      }`}
+                    >
+                      {kom.kom_time}
+                    </p>
                     <p className="text-xs text-subtle-green mt-1">KOM</p>
                   </div>
                 )}
-                {segment.kom.qom_time && (
+                {kom.qom_time && (
                   <div className="bg-surface rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-pink-500">{segment.kom.qom_time}</p>
+                    <p className="text-2xl font-bold text-pink-500">{kom.qom_time}</p>
                     <p className="text-xs text-subtle-green mt-1">QOM</p>
                   </div>
                 )}
               </div>
-              {segment.kom.local_legend_name && (
+
+              {/* Votre écart au KOM */}
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <p className="text-xs font-semibold text-subtle-green mb-1">
+                  Votre écart au KOM
+                </p>
+                {prSeconds == null ? (
+                  <p className="text-sm text-subtle-green">
+                    Pas encore de temps sur ce segment.
+                  </p>
+                ) : gapSeconds != null && gapPercent != null && gapSeconds > 0 ? (
+                  <p className="text-sm">
+                    Votre PR :{" "}
+                    <span className="font-semibold">
+                      {kom.athlete_pr_time ?? formatTime(prSeconds)}
+                    </span>
+                    . Le KOM est{" "}
+                    <span className="font-semibold text-primary">
+                      {gapPercent.toFixed(1)}%
+                    </span>{" "}
+                    plus rapide (−
+                    {gapSeconds < 60 ? `${gapSeconds}s` : formatTime(gapSeconds)}
+                    ).
+                  </p>
+                ) : (
+                  <p className="text-sm">
+                    Votre PR{" "}
+                    <span className="font-semibold">
+                      {kom.athlete_pr_time ?? formatTime(prSeconds)}
+                    </span>{" "}
+                    égale ou bat le temps KOM affiché.
+                  </p>
+                )}
+              </div>
+
+              {/* Allure à tenir pour battre le KOM */}
+              {komPaceLabel && (
                 <div className="mt-3 pt-3 border-t border-border/50">
-                  <p className="text-xs text-subtle-green">Légende Locale</p>
-                  <p className="font-medium text-sm">{segment.kom.local_legend_name}</p>
-                  {segment.kom.local_legend_efforts && (
-                    <p className="text-xs text-subtle-green">{segment.kom.local_legend_efforts}</p>
-                  )}
+                  <p className="text-xs font-semibold text-subtle-green mb-1">
+                    Allure à tenir pour battre le KOM
+                  </p>
+                  <p className="text-sm">
+                    <span className="font-semibold text-primary">
+                      {komPaceLabel}
+                    </span>{" "}
+                    <span className="text-subtle-green">
+                      {isRunning ? "sur toute la distance" : "de moyenne"}
+                    </span>
+                  </p>
                 </div>
               )}
             </section>

@@ -28,6 +28,21 @@ export function formatTime(seconds: number): string {
 }
 
 /**
+ * Format a running pace (seconds per kilometre) as "m:ss/km".
+ *
+ * Used to express the pace required to beat a KOM: pace = kom_time_seconds /
+ * (distance_m / 1000). Returns an em dash for non-finite or non-positive input
+ * (e.g. missing KOM time or zero-length segment).
+ */
+export function formatPacePerKm(secondsPerKm: number): string {
+  if (!Number.isFinite(secondsPerKm) || secondsPerKm <= 0) return "—";
+  const total = Math.round(secondsPerKm);
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${minutes}:${secs.toString().padStart(2, "0")}/km`;
+}
+
+/**
  * Format distance in meters to km or m
  */
 export function formatDistance(meters: number): string {
