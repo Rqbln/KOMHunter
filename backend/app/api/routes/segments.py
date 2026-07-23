@@ -28,7 +28,7 @@ from app.api.dependencies import (
 from app.api.errors import map_strava_error
 # Re-exported here so ``segments.parse_time_to_seconds`` keeps working for
 # existing importers; the canonical definition lives in utils.formatters.
-from app.utils.formatters import parse_time_to_seconds
+from app.utils.formatters import parse_time_to_seconds, format_seconds_to_time
 
 router = APIRouter()
 
@@ -138,13 +138,22 @@ async def explore_segments(
         
         # Enriched sorts (popularity/competitiveness/opportunity) need
         # per-segment detail (effort/athlete counts, KOM time) that explore does
-        # not return; fetch it (bounded + cached) only for those sorts.
-        if request.sort_by in _ENRICHED_SORTS:
+        # not return; fetch it (bounded + cached) for those sorts. reliable_only
+        # also needs it, to learn each segment's KOM plausibility.
+        if request.reliable_only or request.sort_by in _ENRICHED_SORTS:
             await enrich_segments(scored_segments, strava_service, scoring_service)
 
+        # "Segments fiables uniquement": drop segments whose KOM time is
+        # physically implausible (GPS errors) once enrichment has flagged them.
+        if request.reliable_only:
+            scored_segments = [s for s in scored_segments if not s.kom_suspicious]
+
         # Dispatch on sort_by (validated to the allowed set by the model).
-        # Segments missing enrichment data sort last in every enriched sort.
-        scored_segments.sort(key=_SORT_KEYS[request.sort_by])
+        # A leading suspicious tier forces implausible-KOM segments last in EVERY
+        # sort; missing-enrichment segments then sort last within their tier.
+        scored_segments.sort(
+            key=lambda s: (1 if s.kom_suspicious else 0,) + tuple(_SORT_KEYS[request.sort_by](s))
+        )
 
         return SegmentExploreResponse(
             segments=scored_segments,
@@ -206,10 +215,27 @@ async def get_segment_details(
         qom_time_str = xoms.get("qom") if xoms else None
         kom_time_seconds = parse_time_to_seconds(kom_time_str)
         qom_time_seconds = parse_time_to_seconds(qom_time_str)
-        
+
+        # The authenticated athlete's own PR on this segment (free API), used to
+        # show "how far you are from the KOM".
+        athlete_stats = segment_data.get("athlete_segment_stats") or {}
+        athlete_pr_seconds = athlete_stats.get("pr_elapsed_time")
+        athlete_pr_time = (
+            format_seconds_to_time(athlete_pr_seconds) if athlete_pr_seconds else None
+        )
+
+        # Flag a physically implausible KOM (GPS error) so the UI can warn.
+        activity_type = segment_data.get("activity_type", "Ride")
+        distance_m = segment_data.get("distance", 0)
+        kom_suspicious = scoring_service.is_kom_suspicious(
+            distance_m=distance_m,
+            kom_time_seconds=kom_time_seconds,
+            activity_type=activity_type,
+        )
+
         # Build KOM data object
         kom_data = None
-        if xoms or local_legend:
+        if xoms or local_legend or athlete_pr_seconds is not None:
             kom_data = KOMData(
                 kom_time=kom_time_str,
                 qom_time=qom_time_str,
@@ -218,19 +244,19 @@ async def get_segment_details(
                 qom_time_seconds=qom_time_seconds,
                 local_legend_name=local_legend.get("title") if local_legend else None,
                 local_legend_efforts=local_legend.get("effort_description") if local_legend else None,
+                athlete_pr_seconds=athlete_pr_seconds,
+                athlete_pr_time=athlete_pr_time,
+                kom_suspicious=kom_suspicious,
             )
-        
-        # Extract segment data for scoring
-        distance_m = segment_data.get("distance", 0)
+
+        # Extract remaining segment data for scoring
         elevation_gain = segment_data.get("total_elevation_gain", 0)
         avg_grade = segment_data.get("average_grade", 0)
         max_grade = segment_data.get("maximum_grade", 0)
         elev_high = segment_data.get("elevation_high", 0)
         effort_count = segment_data.get("effort_count", 0)
         athlete_count = segment_data.get("athlete_count", 0)
-        # Strava returns activity_type "Ride" or "Run"
-        activity_type = segment_data.get("activity_type", "Ride")
-        # Normalize to the model vocabulary (riding/running) for the response
+        # Normalize activity_type ("Ride"/"Run") to the model vocabulary
         sport = "running" if str(activity_type).lower().startswith("run") else "riding"
 
         # Calculate full breakdown: terrain difficulty + standalone context scores
@@ -284,6 +310,7 @@ async def get_segment_details(
             difficulty_score=difficulty_result["normalized_score"],
             difficulty_breakdown=difficulty_breakdown,
             kom=kom_data,
+            kom_suspicious=kom_suspicious,
             activity_type=sport,
         )
 

@@ -42,6 +42,11 @@ export interface SegmentSummary {
   effort_count?: number | null;
   athlete_count?: number | null;
   kom_time?: string | null;
+  // True when the KOM time is physically implausible for the sport/distance
+  // (likely a GPS error) — see backend is_kom_suspicious. Populated only when
+  // the segment was enriched (reliable_only or an enriched sort). Suspicious
+  // segments sort last in every ordering.
+  kom_suspicious?: boolean | null;
 }
 
 export interface KOMData {
@@ -50,6 +55,15 @@ export interface KOMData {
   overall_time?: string;
   kom_time_seconds?: number;
   qom_time_seconds?: number;
+  // The authenticated athlete's own PR on this segment (from Strava's
+  // athlete_segment_stats). Null when the athlete has no recorded effort.
+  athlete_pr_seconds?: number | null;
+  athlete_pr_time?: string | null;
+  // True when the KOM time is physically implausible (GPS error). See
+  // is_kom_suspicious on the backend.
+  kom_suspicious?: boolean | null;
+  // NOTE: local_legend_* is NOT the KOM holder (the leaderboard is premium and
+  // unavailable on the free API). Kept on the type but no longer rendered.
   local_legend_name?: string;
   local_legend_efforts?: string;
 }
@@ -106,6 +120,10 @@ export interface SegmentExploreRequest {
   // backend to fetch per-segment detail and populate SegmentSummary's
   // enrichment fields.
   sort_by?: SegmentSortBy;
+  // When true, the backend enriches every candidate (to learn KOM
+  // suspiciousness) and DROPS segments whose KOM time is aberrant. Defaults to
+  // false server-side when omitted.
+  reliable_only?: boolean;
 }
 
 export interface SegmentExploreResponse {
@@ -282,6 +300,10 @@ export interface HuntParameters {
   // Result ordering picked in the "Trier par" selector; maps onto
   // SegmentExploreRequest.sort_by. Undefined falls back to "difficulty".
   sortBy?: SegmentSortBy;
+  // "Segments fiables uniquement" toggle; maps onto
+  // SegmentExploreRequest.reliable_only. Excludes segments with an aberrant KOM
+  // time. Undefined/false leaves them in.
+  reliableOnly?: boolean;
 }
 
 // Difficulty categories

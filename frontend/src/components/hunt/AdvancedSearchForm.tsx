@@ -52,6 +52,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
   const [maxGrade, setMaxGrade] = useState("");
   const [minDistanceKm, setMinDistanceKm] = useState("");
   const [maxDistanceKm, setMaxDistanceKm] = useState("");
+  const [reliableOnly, setReliableOnly] = useState(false);
 
   const handleLocationChange = useCallback(
     (newLocation: string, lat: number, lon: number) => {
@@ -87,6 +88,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
       maxGrade: toOptionalNumber(maxGrade),
       minDistanceKm: toOptionalNumber(minDistanceKm),
       maxDistanceKm: toOptionalNumber(maxDistanceKm),
+      reliableOnly,
     });
   }, [
     location,
@@ -101,6 +103,7 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
     maxGrade,
     minDistanceKm,
     maxDistanceKm,
+    reliableOnly,
     onSubmit,
   ]);
 
@@ -140,6 +143,22 @@ export function AdvancedSearchForm({ onSubmit, isLoading }: AdvancedSearchFormPr
           onChange={setMaxSegments}
         />
         <SortSelector value={sortBy} onChange={setSortBy} />
+
+        {/* Reliable-only filter */}
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={reliableOnly}
+            onChange={(e) => setReliableOnly(e.target.checked)}
+            className="mt-0.5 size-4 accent-primary cursor-pointer"
+          />
+          <span className="text-sm">
+            Segments fiables uniquement
+            <span className="block text-xs text-subtle-green">
+              Exclut les segments au temps KOM aberrant (erreur GPS)
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* Advanced filters */}

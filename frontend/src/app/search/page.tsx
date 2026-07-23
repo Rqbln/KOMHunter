@@ -47,6 +47,7 @@ function buildRequest(params: HuntParameters): SegmentExploreRequest {
     max_cat: params.maxCat,
   };
   if (params.sortBy) request.sort_by = params.sortBy;
+  if (params.reliableOnly) request.reliable_only = true;
   if (params.minGrade !== undefined) request.min_grade = params.minGrade;
   if (params.maxGrade !== undefined) request.max_grade = params.maxGrade;
   if (params.minDistanceKm !== undefined)

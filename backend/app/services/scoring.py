@@ -35,6 +35,37 @@ def _is_running(activity_type: Union[str, Enum, None]) -> bool:
     return str(value).lower().startswith("run")
 
 
+# KOM/QOM speed ceilings above which an effort is physically implausible and
+# almost certainly a GPS glitch (e.g. a 490 m run with a 20 s "KOM" ~= 88 km/h).
+# Running suspicious above 24 km/h (pace faster than 2:30/km). Riding above
+# 90 km/h — high enough to leave legitimate fast alpine descents (which routinely
+# average 60-80 km/h) untouched, while still catching GPS-glitch KOMs (120+ km/h).
+# Kept module-level so both scoring and the API can flag such segments.
+_SUSPICIOUS_RUN_KMH = 24.0
+_SUSPICIOUS_RIDE_KMH = 90.0
+
+
+def is_kom_suspicious(
+    distance_m: Optional[float],
+    kom_time_seconds: Optional[int],
+    activity_type: Union[str, Enum, None] = "riding",
+) -> bool:
+    """
+    Return True when the KOM/QOM speed is physically implausible (likely a GPS
+    error) and the segment should be flagged and sorted last.
+
+    Running is suspicious above 24 km/h (pace faster than 2:30/km); riding above
+    70 km/h. Missing distance or KOM time returns False (nothing to judge).
+    Reuses the KOM-speed computation shape from ``compute_competitiveness_score``.
+    """
+    if not kom_time_seconds or kom_time_seconds <= 0 or not distance_m or distance_m <= 0:
+        return False
+
+    kom_speed_kmh = (distance_m / 1000.0) / (kom_time_seconds / 3600.0)
+    threshold = _SUSPICIOUS_RUN_KMH if _is_running(activity_type) else _SUSPICIOUS_RIDE_KMH
+    return kom_speed_kmh > threshold
+
+
 class ScoringService:
     """
     Compute a terrain-based, sport-aware difficulty score (0-100) plus two
@@ -216,6 +247,18 @@ class ScoringService:
         else:
             score = 40.0 + (speed_ratio - 1.0) * 60.0
         return min(100.0, round(score, 1))
+
+    def is_kom_suspicious(
+        self,
+        distance_m: Optional[float],
+        kom_time_seconds: Optional[int],
+        activity_type: Union[str, Enum, None] = "riding",
+    ) -> bool:
+        """
+        Instance wrapper around the module-level :func:`is_kom_suspicious` so
+        callers holding a ``ScoringService`` can flag GPS-glitched KOMs directly.
+        """
+        return is_kom_suspicious(distance_m, kom_time_seconds, activity_type)
 
     # ------------------------------------------------------------------ #
     # Category + aggregate helpers

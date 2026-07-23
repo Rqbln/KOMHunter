@@ -46,6 +46,7 @@ export function HuntParameters({
   const [radiusOverride, setRadiusOverride] = useState<number | null>(null);
   const [maxSegments, setMaxSegments] = useState(50);
   const [sortBy, setSortBy] = useState<SegmentSortBy>("difficulty");
+  const [reliableOnly, setReliableOnly] = useState(false);
 
   const sportType = sportOverride ?? settings.defaultSport;
   const radiusKm = radiusOverride ?? settings.defaultRadiusKm;
@@ -59,6 +60,7 @@ export function HuntParameters({
       radiusKm,
       maxSegments,
       sortBy,
+      reliableOnly,
     });
   }, [
     location,
@@ -68,6 +70,7 @@ export function HuntParameters({
     radiusKm,
     maxSegments,
     sortBy,
+    reliableOnly,
     onSubmit,
   ]);
 
@@ -109,6 +112,22 @@ export function HuntParameters({
 
         {/* Sort selector */}
         <SortSelector value={sortBy} onChange={setSortBy} />
+
+        {/* Reliable-only filter */}
+        <label className="flex items-start gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={reliableOnly}
+            onChange={(e) => setReliableOnly(e.target.checked)}
+            className="mt-0.5 size-4 accent-primary cursor-pointer"
+          />
+          <span className="text-sm">
+            Segments fiables uniquement
+            <span className="block text-xs text-subtle-green">
+              Exclut les segments au temps KOM aberrant (erreur GPS)
+            </span>
+          </span>
+        </label>
       </div>
 
       {/* Submit Button */}

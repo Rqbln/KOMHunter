@@ -115,6 +115,11 @@ def _apply_enrichment(
     summary.effort_count = effort_count
     summary.athlete_count = athlete_count
     summary.kom_time = kom_time_str
+    summary.kom_suspicious = scoring_service.is_kom_suspicious(
+        distance_m=distance_m,
+        kom_time_seconds=kom_time_seconds,
+        activity_type=activity_type,
+    )
 
 
 async def enrich_segments(

@@ -2,7 +2,40 @@
 Tests for the terrain-first, sport-aware segment scoring service.
 """
 import pytest
-from app.services.scoring import ScoringService, DifficultyCategory
+from app.services.scoring import ScoringService, DifficultyCategory, is_kom_suspicious
+
+
+class TestKomSuspicious:
+    """A physically implausible KOM speed (GPS error) must be flagged."""
+
+    def test_bogus_short_run_kom_is_suspicious(self):
+        # 490 m in 20 s = ~88 km/h running -> impossible.
+        assert is_kom_suspicious(490, 20, "running") is True
+        assert is_kom_suspicious(490, 20, "Run") is True
+
+    def test_normal_run_kom_not_suspicious(self):
+        # 3 km in 12 min = 15 km/h -> fine.
+        assert is_kom_suspicious(3000, 720, "running") is False
+
+    def test_fast_but_legit_flat_ride_not_suspicious(self):
+        # 1 km flat sprint in 60 s = 60 km/h ride -> below the 90 km/h ceiling.
+        assert is_kom_suspicious(1000, 60, "riding") is False
+
+    def test_legit_alpine_descent_not_suspicious(self):
+        # 5 km descent in 240 s = 75 km/h ride -> legit fast descent, not flagged.
+        assert is_kom_suspicious(5000, 240, "riding") is False
+
+    def test_bogus_ride_kom_is_suspicious(self):
+        # 1 km in 30 s = 120 km/h ride -> impossible.
+        assert is_kom_suspicious(1000, 30, "riding") is True
+
+    def test_missing_data_not_suspicious(self):
+        assert is_kom_suspicious(None, 20, "running") is False
+        assert is_kom_suspicious(490, None, "running") is False
+        assert is_kom_suspicious(490, 0, "running") is False
+
+    def test_instance_wrapper(self, scoring_service: ScoringService):
+        assert scoring_service.is_kom_suspicious(490, 20, "running") is True
 
 
 class TestTerrainDifficulty:
