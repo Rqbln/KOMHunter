@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * Hook for fetching and managing athlete statistics, KOMs, PRs, and starred segments
+ * Hook for fetching and managing athlete statistics, KOMs, and starred segments
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type {
   AthleteStats,
   AthleteKOM,
-  SegmentEffort,
   StarredSegment,
 } from "@/types";
 import { athletes } from "@/lib/api";
@@ -16,19 +15,15 @@ import { athletes } from "@/lib/api";
 interface UseAthleteStatsReturn {
   stats: AthleteStats | null;
   koms: AthleteKOM[];
-  prs: SegmentEffort[];
   starredSegments: StarredSegment[];
   isLoading: boolean;
   isLoadingKoms: boolean;
-  isLoadingPrs: boolean;
   isLoadingStarred: boolean;
   error: string | null;
   komsCount: number;
-  prsCount: number;
   starredCount: number;
   fetchStats: () => Promise<void>;
   fetchKOMs: (page?: number) => Promise<void>;
-  fetchPRs: (page?: number) => Promise<void>;
   fetchStarredSegments: (page?: number) => Promise<void>;
   fetchAll: () => Promise<void>;
 }
@@ -42,12 +37,7 @@ export function useAthleteStats(): UseAthleteStatsReturn {
   const [koms, setKoms] = useState<AthleteKOM[]>([]);
   const [komsCount, setKomsCount] = useState(0);
   const [isLoadingKoms, setIsLoadingKoms] = useState(false);
-  
-  // PRs state
-  const [prs, setPrs] = useState<SegmentEffort[]>([]);
-  const [prsCount, setPrsCount] = useState(0);
-  const [isLoadingPrs, setIsLoadingPrs] = useState(false);
-  
+
   // Starred segments state
   const [starredSegments, setStarredSegments] = useState<StarredSegment[]>([]);
   const [starredCount, setStarredCount] = useState(0);
@@ -91,26 +81,6 @@ export function useAthleteStats(): UseAthleteStatsReturn {
     }
   }, []);
 
-  const fetchPRs = useCallback(async (page: number = 1) => {
-    setIsLoadingPrs(true);
-    setError(null);
-    
-    try {
-      const response = await athletes.getPRs(page);
-      if (page === 1) {
-        setPrs(response.prs);
-      } else {
-        setPrs(prev => [...prev, ...response.prs]);
-      }
-      setPrsCount(response.total_count);
-    } catch (err) {
-      console.error("Failed to fetch PRs:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch PRs");
-    } finally {
-      setIsLoadingPrs(false);
-    }
-  }, []);
-
   const fetchStarredSegments = useCallback(async (page: number = 1) => {
     setIsLoadingStarred(true);
     setError(null);
@@ -135,27 +105,22 @@ export function useAthleteStats(): UseAthleteStatsReturn {
     await Promise.all([
       fetchStats(),
       fetchKOMs(),
-      fetchPRs(),
       fetchStarredSegments(),
     ]);
-  }, [fetchStats, fetchKOMs, fetchPRs, fetchStarredSegments]);
+  }, [fetchStats, fetchKOMs, fetchStarredSegments]);
 
   return {
     stats,
     koms,
-    prs,
     starredSegments,
     isLoading,
     isLoadingKoms,
-    isLoadingPrs,
     isLoadingStarred,
     error,
     komsCount,
-    prsCount,
     starredCount,
     fetchStats,
     fetchKOMs,
-    fetchPRs,
     fetchStarredSegments,
     fetchAll,
   };

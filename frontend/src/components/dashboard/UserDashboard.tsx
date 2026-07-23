@@ -1,15 +1,20 @@
 "use client";
 
 /**
- * User dashboard component - shows stats, KOMs, PRs, and starred segments
+ * User dashboard component - shows stats, KOMs, and starred segments
  */
 
 import { useState, useEffect } from "react";
 import { useStrava, useAthleteStats } from "@/hooks";
+import { sportColorVar } from "@/lib/sport";
 import { StatsSummary } from "./StatsSummary";
-import { KOMCard, PRCard, StarredSegmentCard } from "./KOMCard";
+import { KOMCard, StarredSegmentCard } from "./KOMCard";
 
-type TabType = "stats" | "koms" | "prs" | "starred";
+type TabType = "stats" | "koms" | "starred";
+
+// KOM sport filter for the KOMs tab. "all" shows every KOM; "riding"/"running"
+// match the normalized AthleteKOM.activity_type emitted by the backend.
+type KomFilter = "all" | "riding" | "running";
 
 interface UserDashboardProps {
   isOpen: boolean;
@@ -17,24 +22,72 @@ interface UserDashboardProps {
   onSelectSegment?: (segmentId: number) => void;
 }
 
+/**
+ * Pill button for the KOMs Vélo/Course filter. Styled to match the
+ * StatsSummary sport toggle. `activeColor` (a CSS color/var) tints the active
+ * sport pills; the "Tous" pill falls back to the primary accent class.
+ */
+function KomFilterButton({
+  label,
+  icon,
+  active,
+  disabled,
+  activeColor,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  active: boolean;
+  disabled?: boolean;
+  activeColor?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={`flex h-full grow items-center justify-center gap-1 rounded-full px-2 text-sm font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40 ${
+        active
+          ? `text-white shadow-sm${activeColor ? "" : " bg-primary"}`
+          : "text-subtle-green"
+      }`}
+      style={active && activeColor ? { backgroundColor: activeColor } : undefined}
+    >
+      <span className="material-symbols-outlined text-lg">{icon}</span>
+      {label}
+    </button>
+  );
+}
+
 export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboardProps) {
   const { athlete, isAuthenticated } = useStrava();
   const {
     stats,
     koms,
-    prs,
     starredSegments,
     isLoading,
     isLoadingKoms,
-    isLoadingPrs,
     isLoadingStarred,
     komsCount,
-    prsCount,
     starredCount,
     fetchAll,
   } = useAthleteStats();
 
   const [activeTab, setActiveTab] = useState<TabType>("stats");
+  const [komFilter, setKomFilter] = useState<KomFilter>("all");
+
+  const hasRunKoms = koms.some((kom) => kom.activity_type === "running");
+  const hasRideKoms = koms.some((kom) => kom.activity_type !== "running");
+  const filteredKoms =
+    komFilter === "all"
+      ? koms
+      : koms.filter((kom) =>
+          komFilter === "running"
+            ? kom.activity_type === "running"
+            : kom.activity_type !== "running"
+        );
 
   // Fetch data when dashboard opens and user is authenticated
   useEffect(() => {
@@ -46,7 +99,6 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
   const tabs: { id: TabType; label: string; icon: string; count?: number }[] = [
     { id: "stats", label: "Stats", icon: "analytics" },
     { id: "koms", label: "KOMs", icon: "emoji_events", count: komsCount },
-    { id: "prs", label: "PRs", icon: "timer", count: prsCount },
     { id: "starred", label: "Favoris", icon: "star", count: starredCount },
   ];
 
@@ -137,49 +189,48 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
                   <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : koms.length > 0 ? (
-                koms.map((kom) => (
-                  <KOMCard
-                    key={`${kom.segment_id}-${kom.activity_id}`}
-                    kom={kom}
-                    onClick={() => {
-                      onSelectSegment?.(kom.segment_id);
-                      onClose();
-                    }}
-                  />
-                ))
+                <>
+                  {/* Tous / Vélo / Course filter */}
+                  <div className="flex h-11 w-full items-center justify-center rounded-full border border-border bg-background p-1">
+                    <KomFilterButton
+                      label="Tous"
+                      icon="list"
+                      active={komFilter === "all"}
+                      onClick={() => setKomFilter("all")}
+                    />
+                    <KomFilterButton
+                      label="Vélo"
+                      icon="directions_bike"
+                      active={komFilter === "riding"}
+                      disabled={!hasRideKoms}
+                      activeColor={sportColorVar("riding")}
+                      onClick={() => setKomFilter("riding")}
+                    />
+                    <KomFilterButton
+                      label="Course"
+                      icon="directions_run"
+                      active={komFilter === "running"}
+                      disabled={!hasRunKoms}
+                      activeColor={sportColorVar("running")}
+                      onClick={() => setKomFilter("running")}
+                    />
+                  </div>
+                  {filteredKoms.map((kom) => (
+                    <KOMCard
+                      key={`${kom.segment_id}-${kom.activity_id}`}
+                      kom={kom}
+                      onClick={() => {
+                        onSelectSegment?.(kom.segment_id);
+                        onClose();
+                      }}
+                    />
+                  ))}
+                </>
               ) : (
                 <div className="text-center py-8 text-subtle-green">
                   <span className="material-symbols-outlined text-4xl mb-2">emoji_events</span>
                   <p>Pas encore de KOM</p>
                   <p className="text-xs mt-1">Allez chercher vos couronnes!</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* PRs Tab */}
-          {activeTab === "prs" && (
-            <div className="space-y-3">
-              {isLoadingPrs ? (
-                <div className="flex justify-center py-8">
-                  <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : prs.length > 0 ? (
-                prs.map((pr) => (
-                  <PRCard
-                    key={pr.id}
-                    pr={pr}
-                    onClick={() => {
-                      onSelectSegment?.(pr.segment_id);
-                      onClose();
-                    }}
-                  />
-                ))
-              ) : (
-                <div className="text-center py-8 text-subtle-green">
-                  <span className="material-symbols-outlined text-4xl mb-2">timer</span>
-                  <p>Pas de PRs récents</p>
-                  <p className="text-xs mt-1">Continuez à rouler pour battre vos records!</p>
                 </div>
               )}
             </div>

@@ -10,7 +10,6 @@ import type {
   AthleteStats,
   KOMsResponse,
   StarredSegmentsResponse,
-  PRsResponse,
   HeatmapResponse,
   GeocodingResult,
   GeocodeResponse,
@@ -171,13 +170,6 @@ export const athletes = {
     return fetchAPI(`/api/athletes/me/starred?page=${page}&per_page=${perPage}`);
   },
   
-  /**
-   * Get current user's Personal Records
-   */
-  async getPRs(page: number = 1, perPage: number = 30): Promise<PRsResponse> {
-    return fetchAPI(`/api/athletes/me/prs?page=${page}&per_page=${perPage}`);
-  },
-
   /**
    * Get the current user's training heatmap: aggregated activity coordinates
    * ready to feed a Leaflet heat layer. All params are optional; when omitted

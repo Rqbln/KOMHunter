@@ -181,22 +181,10 @@ export interface AthleteKOM {
   start_date: string;
   start_date_local: string;
   kom_rank?: number;
-}
-
-export interface SegmentEffort {
-  id: number;
-  segment_id: number;
-  segment_name: string;
-  activity_id: number;
-  elapsed_time: number;
-  elapsed_time_formatted: string;
-  moving_time: number;
-  start_date: string;
-  start_date_local: string;
-  distance: number;
-  pr_rank?: number;
-  kom_rank?: number;
-  achievements?: unknown[];
+  // Normalized sport of the KOM's segment ("riding" | "running"), derived by the
+  // backend from the nested Strava segment's activity_type ("Run" -> "running",
+  // else "riding"). Drives the sport icon/accent and the Vélo/Course filter.
+  activity_type: string;
 }
 
 export interface StarredSegment {
@@ -223,13 +211,6 @@ export interface KOMsResponse {
 
 export interface StarredSegmentsResponse {
   segments: StarredSegment[];
-  total_count: number;
-  page: number;
-  per_page: number;
-}
-
-export interface PRsResponse {
-  prs: SegmentEffort[];
   total_count: number;
   page: number;
   per_page: number;

@@ -4,16 +4,11 @@
  * Individual KOM card component
  */
 
-import type { AthleteKOM, SegmentEffort, StarredSegment } from "@/types";
+import type { AthleteKOM, StarredSegment } from "@/types";
 import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 
 interface KOMCardProps {
   kom: AthleteKOM;
-  onClick?: () => void;
-}
-
-interface PRCardProps {
-  pr: SegmentEffort;
   onClick?: () => void;
 }
 
@@ -64,53 +59,15 @@ export function KOMCard({ kom, onClick }: KOMCardProps) {
               KOM
             </span>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function PRCard({ pr, onClick }: PRCardProps) {
-  const getPRBadge = (rank: number | undefined) => {
-    if (!rank) return null;
-    if (rank === 1) return { label: "PR", color: "bg-green-100 text-green-700" };
-    if (rank === 2) return { label: "2e PR", color: "bg-blue-100 text-blue-700" };
-    if (rank === 3) return { label: "3e PR", color: "bg-purple-100 text-purple-700" };
-    return null;
-  };
-
-  const badge = getPRBadge(pr.pr_rank);
-
-  return (
-    <div 
-      className="bg-surface border border-border rounded-xl p-4 hover:border-primary/50 transition-colors cursor-pointer"
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="material-symbols-outlined text-green-500 text-lg">timer</span>
-            <h4 className="font-bold text-sm truncate">{pr.segment_name}</h4>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-subtle-green">
-            <span>{formatDistance(pr.distance)}</span>
-            <span>{formatDate(pr.start_date_local)}</span>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-bold">{pr.elapsed_time_formatted}</p>
-          <div className="flex gap-1 justify-end mt-1">
-            {badge && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.color}`}>
-                {badge.label}
-              </span>
-            )}
-            {pr.kom_rank && pr.kom_rank <= 10 && (
-              <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
-                Top {pr.kom_rank}
-              </span>
-            )}
-          </div>
+          <p
+            className="text-xs mt-1 flex items-center justify-end gap-1 font-medium"
+            style={{ color: sportColorVar(kom.activity_type) }}
+          >
+            <span className="material-symbols-outlined text-sm leading-none">
+              {sportIcon(kom.activity_type)}
+            </span>
+            {sportLabel(kom.activity_type)}
+          </p>
         </div>
       </div>
     </div>

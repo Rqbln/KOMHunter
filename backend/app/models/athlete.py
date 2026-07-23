@@ -95,10 +95,14 @@ class AthleteKOM(BaseModel):
     elapsed_time_formatted: str = Field("", description="Effort time formatted (mm:ss)")
     distance: float = Field(0, description="Segment distance in meters")
     avg_grade: float = Field(0, description="Segment average grade")
+    activity_type: str = Field(
+        "riding",
+        description="Discipline of the KOM segment: 'running' or 'riding'",
+    )
     start_date: str = Field("", description="Date of the effort")
     start_date_local: str = Field("", description="Local date of the effort")
     kom_rank: Optional[int] = Field(None, description="Rank on segment (1 = KOM)")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -109,45 +113,10 @@ class AthleteKOM(BaseModel):
                 "elapsed_time_formatted": "14:22",
                 "distance": 5200,
                 "avg_grade": 8.1,
+                "activity_type": "riding",
                 "start_date": "2024-06-15T10:30:00Z",
                 "start_date_local": "2024-06-15T12:30:00",
                 "kom_rank": 1
-            }
-        }
-
-
-class SegmentEffort(BaseModel):
-    """Athlete's effort on a segment."""
-    
-    id: int = Field(..., description="Effort ID")
-    segment_id: int = Field(..., description="Segment ID")
-    segment_name: str = Field(..., description="Segment name")
-    activity_id: int = Field(..., description="Activity ID")
-    elapsed_time: int = Field(..., description="Effort time in seconds")
-    elapsed_time_formatted: str = Field("", description="Effort time formatted")
-    moving_time: int = Field(0, description="Moving time in seconds")
-    start_date: str = Field("", description="Date of the effort")
-    start_date_local: str = Field("", description="Local date of the effort")
-    distance: float = Field(0, description="Effort distance in meters")
-    pr_rank: Optional[int] = Field(None, description="PR rank (1 = personal best)")
-    kom_rank: Optional[int] = Field(None, description="KOM rank on leaderboard")
-    achievements: Optional[List[dict]] = Field(None, description="Achievements earned")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": 1234567890,
-                "segment_id": 12345678,
-                "segment_name": "Flagstaff Super Climb",
-                "activity_id": 98765432,
-                "elapsed_time": 875,
-                "elapsed_time_formatted": "14:35",
-                "moving_time": 870,
-                "start_date": "2024-06-15T10:30:00Z",
-                "start_date_local": "2024-06-15T12:30:00",
-                "distance": 5200,
-                "pr_rank": 1,
-                "kom_rank": 3
             }
         }
 
@@ -199,15 +168,6 @@ class StarredSegmentsResponse(BaseModel):
     """Response for starred segments list."""
     
     segments: List[StarredSegment] = Field(..., description="List of starred segments")
-    total_count: int = Field(..., description="Total count")
-    page: int = Field(1, description="Current page")
-    per_page: int = Field(30, description="Items per page")
-
-
-class PRsResponse(BaseModel):
-    """Response for athlete PRs list."""
-
-    prs: List[SegmentEffort] = Field(..., description="List of PR efforts")
     total_count: int = Field(..., description="Total count")
     page: int = Field(1, description="Current page")
     per_page: int = Field(30, description="Items per page")
