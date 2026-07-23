@@ -202,6 +202,47 @@ class TestGetMyKOMs:
         assert koms[1]["elapsed_time"] == 3725
         assert koms[1]["elapsed_time_formatted"] == "1:02:05"
 
+    @respx.mock
+    def test_koms_activity_type_normalized(
+        self, client: TestClient, auth_headers: dict
+    ):
+        # The nested segment carries Strava's activity_type ("Run"/"Ride" for
+        # segments); it must be normalized to "running" (starts with "run") or
+        # "riding" (everything else), defaulting to "riding" when absent.
+        koms_response = [
+            {
+                "segment": {"id": 1, "name": "Run seg", "activity_type": "Run"},
+                "activity_id": 10,
+                "elapsed_time": 100,
+            },
+            {
+                "segment": {"id": 2, "name": "Ride seg", "activity_type": "Ride"},
+                "activity_id": 20,
+                "elapsed_time": 200,
+            },
+            {
+                # activity_type absent -> defaults to "riding"
+                "segment": {"id": 3, "name": "No type seg"},
+                "activity_id": 30,
+                "elapsed_time": 300,
+            },
+        ]
+        respx.get(STRAVA_ATHLETE_URL).mock(
+            return_value=httpx.Response(200, json=ATHLETE_RESPONSE)
+        )
+        respx.get(STRAVA_KOMS_URL).mock(
+            return_value=httpx.Response(200, json=koms_response)
+        )
+        response = client.get("/api/athletes/me/koms", headers=auth_headers)
+
+        assert response.status_code == 200
+        koms = response.json()["koms"]
+        assert [k["activity_type"] for k in koms] == [
+            "running",
+            "riding",
+            "riding",
+        ]
+
 
 class TestGetMyHeatmap:
     """GET /api/athletes/me/heatmap"""

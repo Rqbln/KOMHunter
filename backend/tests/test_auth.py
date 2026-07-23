@@ -207,6 +207,7 @@ class TestStravaAuthService:
         
         assert auth_service.is_token_expired(near_future)
     
+    @pytest.mark.asyncio
     @respx.mock
     async def test_exchange_code(self, auth_service: StravaAuthService):
         """Test code exchange against a mocked Strava token endpoint."""
@@ -229,6 +230,7 @@ class TestStravaAuthService:
         assert "code=test_auth_code" in body
         assert "client_id=test_id" in body
 
+    @pytest.mark.asyncio
     @respx.mock
     async def test_exchange_code_error_raises(self, auth_service: StravaAuthService):
         """A Strava error response propagates as httpx.HTTPStatusError."""
@@ -238,6 +240,7 @@ class TestStravaAuthService:
         with pytest.raises(httpx.HTTPStatusError):
             await auth_service.exchange_code("bad_code")
 
+    @pytest.mark.asyncio
     @respx.mock
     async def test_refresh_access_token(self, auth_service: StravaAuthService):
         """Test token refresh against a mocked Strava token endpoint."""
@@ -260,6 +263,7 @@ class TestStravaAuthService:
         assert "grant_type=refresh_token" in body
         assert "refresh_token=old_refresh_token" in body
 
+    @pytest.mark.asyncio
     @respx.mock
     async def test_refresh_access_token_error_raises(
         self, auth_service: StravaAuthService

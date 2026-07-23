@@ -15,11 +15,9 @@ from app.models.athlete import (
     AthleteStats,
     ActivityTotals,
     AthleteKOM,
-    SegmentEffort,
     StarredSegment,
     KOMsResponse,
     StarredSegmentsResponse,
-    PRsResponse,
     HeatmapResponse,
 )
 from app.services.strava_api import StravaAPIService
@@ -30,7 +28,6 @@ from app.api.dependencies import (
     get_token_payload,
 )
 from app.api.errors import map_strava_error
-from app.utils.formatters import format_seconds_to_time
 from app.utils.polyline import decode_polyline
 
 router = APIRouter()
@@ -238,6 +235,15 @@ async def get_my_koms(
         koms = []
         for entry in koms_data:
             segment = entry.get("segment", {})
+            # Strava's nested segment carries the discipline as activity_type
+            # ("Ride"/"Run"/variants). Normalize to "running"/"riding" so the
+            # profile can differentiate and filter run vs ride KOMs.
+            segment_activity_type = segment.get("activity_type", "Ride")
+            activity_type = (
+                "running"
+                if str(segment_activity_type).lower().startswith("run")
+                else "riding"
+            )
             koms.append(AthleteKOM(
                 segment_id=segment.get("id", 0),
                 segment_name=segment.get("name", "Unknown"),
@@ -246,6 +252,7 @@ async def get_my_koms(
                 elapsed_time_formatted=entry.get("elapsed_time_formatted", ""),
                 distance=segment.get("distance", 0),
                 avg_grade=segment.get("average_grade", 0),
+                activity_type=activity_type,
                 start_date=entry.get("start_date", ""),
                 start_date_local=entry.get("start_date_local", ""),
                 kom_rank=entry.get("kom_rank"),
@@ -314,70 +321,6 @@ async def get_my_starred_segments(
     except Exception:
         logger.exception("Failed to get starred segments")
         raise HTTPException(status_code=500, detail="Failed to get starred segments")
-
-
-@router.get("/me/prs", response_model=PRsResponse)
-async def get_my_prs(
-    page: int = Query(1, ge=1, description="Page number"),
-    per_page: int = Query(30, ge=1, le=100, description="Items per page"),
-    strava_service: StravaAPIService = Depends(get_strava_api_service),
-) -> PRsResponse:
-    """
-    Get the authenticated athlete's Personal Records (PRs).
-    
-    Returns recent activities with segment PRs.
-    Note: This endpoint aggregates PRs from recent activities.
-    """
-    try:
-        # Get recent activities
-        activities = await strava_service.list_athlete_activities(
-            page=page,
-            per_page=per_page,
-        )
-        
-        # Collect PRs from activities
-        prs = []
-        for activity in activities:
-            # Each activity may have segment_efforts with PRs
-            segment_efforts = activity.get("segment_efforts", [])
-            for effort in segment_efforts:
-                # Check if this is a PR (pr_rank = 1)
-                pr_rank = effort.get("pr_rank")
-                if pr_rank and pr_rank <= 3:  # Include top 3 PRs
-                    segment = effort.get("segment", {})
-                    prs.append(SegmentEffort(
-                        id=effort.get("id", 0),
-                        segment_id=segment.get("id", 0),
-                        segment_name=segment.get("name", "Unknown"),
-                        activity_id=activity.get("id", 0),
-                        elapsed_time=effort.get("elapsed_time", 0),
-                        elapsed_time_formatted=format_seconds_to_time(effort.get("elapsed_time", 0)),
-                        moving_time=effort.get("moving_time", 0),
-                        start_date=effort.get("start_date", ""),
-                        start_date_local=effort.get("start_date_local", ""),
-                        distance=effort.get("distance", 0),
-                        pr_rank=pr_rank,
-                        kom_rank=effort.get("kom_rank"),
-                        achievements=effort.get("achievements"),
-                    ))
-        
-        # Sort by date (most recent first)
-        prs.sort(key=lambda x: x.start_date, reverse=True)
-        
-        return PRsResponse(
-            prs=prs[:per_page],  # Limit to per_page
-            total_count=len(prs),
-            page=page,
-            per_page=per_page,
-        )
-        
-    except HTTPException:
-        raise
-    except httpx.HTTPStatusError as e:
-        raise map_strava_error(e) from e
-    except Exception:
-        logger.exception("Failed to get PRs")
-        raise HTTPException(status_code=500, detail="Failed to get PRs")
 
 
 @router.get("/me/heatmap", response_model=HeatmapResponse)
