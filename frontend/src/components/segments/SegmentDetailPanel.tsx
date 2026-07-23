@@ -201,7 +201,20 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
                   <p className="text-sm text-subtle-green">
                     Pas encore de temps sur ce segment.
                   </p>
-                ) : gapSeconds != null && gapPercent != null && gapSeconds > 0 ? (
+                ) : gapSeconds == null ? (
+                  // KOM time couldn't be parsed to seconds -> no comparison possible.
+                  // Never claim the PR beats the KOM here (it may well be slower).
+                  <p className="text-sm">
+                    Votre PR :{" "}
+                    <span className="font-semibold">
+                      {kom.athlete_pr_time ?? formatTime(prSeconds)}
+                    </span>
+                    .{" "}
+                    <span className="text-subtle-green">
+                      Comparaison au KOM indisponible.
+                    </span>
+                  </p>
+                ) : gapSeconds > 0 ? (
                   <p className="text-sm">
                     Votre PR :{" "}
                     <span className="font-semibold">
@@ -209,8 +222,8 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
                     </span>
                     . Le KOM est{" "}
                     <span className="font-semibold text-primary">
-                      {gapPercent.toFixed(1)}%
-                    </span>{" "}
+                      {gapPercent != null ? `${gapPercent.toFixed(1)}% ` : ""}
+                    </span>
                     plus rapide (−
                     {gapSeconds < 60 ? `${gapSeconds}s` : formatTime(gapSeconds)}
                     ).
@@ -221,7 +234,11 @@ export function SegmentDetailPanel({ segment, isOpen, onClose }: SegmentDetailPa
                     <span className="font-semibold">
                       {kom.athlete_pr_time ?? formatTime(prSeconds)}
                     </span>{" "}
-                    égale ou bat le temps KOM affiché.
+                    égale ou bat le KOM
+                    {gapSeconds < 0
+                      ? ` (+${-gapSeconds < 60 ? `${-gapSeconds}s` : formatTime(-gapSeconds)})`
+                      : ""}
+                    .
                   </p>
                 )}
               </div>

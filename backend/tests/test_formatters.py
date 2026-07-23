@@ -5,12 +5,38 @@ import pytest
 from app.utils.formatters import (
     format_seconds_to_time,
     format_time_to_seconds,
+    parse_time_to_seconds,
     format_distance,
     format_elevation,
     format_grade,
     format_speed,
     format_number,
 )
+
+
+class TestParseTimeToSeconds:
+    """Tolerant Strava xoms time parser (must handle the bare-seconds "25s" form)."""
+
+    def test_bare_seconds_with_s_suffix(self):
+        # Strava's sub-minute KOM format — the case that broke the gap comparison.
+        assert parse_time_to_seconds("25s") == 25
+        assert parse_time_to_seconds("45s") == 45
+        assert parse_time_to_seconds("9s") == 9
+
+    def test_bare_number(self):
+        assert parse_time_to_seconds("90") == 90
+
+    def test_mm_ss(self):
+        assert parse_time_to_seconds("1:31") == 91
+        assert parse_time_to_seconds("14:22") == 862
+
+    def test_hh_mm_ss(self):
+        assert parse_time_to_seconds("1:05:22") == 3922
+
+    def test_missing_or_invalid(self):
+        assert parse_time_to_seconds(None) is None
+        assert parse_time_to_seconds("") is None
+        assert parse_time_to_seconds("invalid") is None
 
 
 class TestTimeFormatting:

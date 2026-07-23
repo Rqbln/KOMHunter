@@ -56,14 +56,18 @@ def format_time_to_seconds(time_str: str) -> int:
 
 def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
     """
-    Parse a time string (mm:ss or hh:mm:ss) to seconds, tolerantly.
+    Parse a Strava xoms time string to seconds, tolerantly.
 
-    Unlike :func:`format_time_to_seconds` (which raises on bad input), this
-    returns ``None`` for missing or unparseable values so callers enriching
-    best-effort segment data never fail on a malformed KOM time.
+    Strava formats KOM/QOM times as "mm:ss" or "h:mm:ss", but sub-minute times
+    come back as bare seconds with a trailing 's' (e.g. "25s"). Handle all three,
+    plus a bare number. Unlike :func:`format_time_to_seconds` (which raises on bad
+    input), this returns ``None`` for missing/unparseable values so best-effort
+    enrichment never fails — but it MUST parse the "25s" form, otherwise a
+    sub-minute KOM has no seconds (breaking the your-gap-to-KOM comparison and
+    the implausible-KOM detection).
 
     Args:
-        time_str: Time string like "14:22" or "1:14:22"
+        time_str: Time string like "25s", "14:22" or "1:14:22"
 
     Returns:
         Time in seconds, or None if parsing fails
@@ -71,9 +75,16 @@ def parse_time_to_seconds(time_str: Optional[str]) -> Optional[int]:
     if not time_str:
         return None
 
+    s = time_str.strip().lower()
+    # Sub-minute Strava times: "25s" -> 25 (only when there's no ":" to confuse).
+    if ":" not in s and s.endswith("s"):
+        s = s[:-1].strip()
+
     try:
-        parts = time_str.strip().split(":")
-        if len(parts) == 2:
+        parts = s.split(":")
+        if len(parts) == 1:
+            return int(parts[0])
+        elif len(parts) == 2:
             minutes, seconds = int(parts[0]), int(parts[1])
             return minutes * 60 + seconds
         elif len(parts) == 3:
