@@ -5,7 +5,7 @@
  */
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useStrava } from "@/hooks";
 import { NotificationsBell } from "./NotificationsBell";
 import { RateLimitBar } from "./RateLimitBar";
@@ -13,15 +13,31 @@ import { RateLimitBar } from "./RateLimitBar";
 interface HeaderProps {
   className?: string;
   onOpenDashboard?: () => void;
+  /**
+   * Called when the logo is clicked — resets the app to its default state.
+   * When omitted (e.g. on /settings), the logo navigates home instead.
+   */
+  onReset?: () => void;
 }
 
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Explorer" },
 ];
 
-export function Header({ className, onOpenDashboard }: HeaderProps) {
+export function Header({ className, onOpenDashboard, onReset }: HeaderProps) {
   const { athlete, isAuthenticated, login } = useStrava();
   const pathname = usePathname();
+  const router = useRouter();
+
+  // The logo doubles as a "home / reset" affordance: on the app page it resets
+  // the hunt to the user's defaults; elsewhere it just navigates home.
+  const handleLogoClick = () => {
+    if (onReset) {
+      onReset();
+    } else {
+      router.push("/");
+    }
+  };
 
   return (
     <header
@@ -29,12 +45,19 @@ export function Header({ className, onOpenDashboard }: HeaderProps) {
     >
       {/* Logo + navigation */}
       <div className="flex items-center gap-4">
-        <div className="size-8 flex items-center justify-center text-primary">
-          <span className="material-symbols-outlined text-3xl">bolt</span>
-        </div>
-        <h2 className="text-xl font-bold leading-tight tracking-[-0.015em]">
-          KOMHunter
-        </h2>
+        <button
+          type="button"
+          onClick={handleLogoClick}
+          aria-label="KOMHunter — réinitialiser la chasse"
+          className="flex items-center gap-4 rounded-full transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <div className="size-8 flex items-center justify-center text-primary">
+            <span className="material-symbols-outlined text-3xl">bolt</span>
+          </div>
+          <span className="text-xl font-bold leading-tight tracking-[-0.015em]">
+            KOMHunter
+          </span>
+        </button>
 
         {/* Primary navigation */}
         <nav className="hidden md:flex items-center gap-1 ml-4">

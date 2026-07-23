@@ -4,12 +4,12 @@
  * KOMHunter Main Page
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MainContent } from "@/components/layout/MainContent";
 import { UserDashboard } from "@/components/dashboard/UserDashboard";
-import { useSegments, useStrava, useHeatmap } from "@/hooks";
+import { useSegments, useStrava, useHeatmap, useSettings } from "@/hooks";
 import { heatmapSportParam } from "@/lib/heatmapSport";
 import type { HuntParameters, HeatmapSport } from "@/types";
 
@@ -19,7 +19,6 @@ function formatCoordLabel(lat: number, lon: number): string {
 }
 
 function HomePageContent() {
-  const [huntParams, setHuntParams] = useState<HuntParameters | null>(null);
   // `center` is the single source of truth for the search area: it drives the
   // map view/radius circle AND feeds the sidebar form's coordinates, so a map
   // click and a "Start Hunt" agree on where to search. `location` is the label
@@ -28,8 +27,38 @@ function HomePageContent() {
   const [location, setLocation] = useState("Paris, France");
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  // Bumped on a logo reset to remount the hunt form, discarding its internal
+  // sport/radius/filter overrides so it falls back to the saved defaults.
+  const [resetKey, setResetKey] = useState(0);
 
   const { isAuthenticated, login } = useStrava();
+
+  // The map/form start on the user's saved default location. `center`/`location`
+  // are initialized to Paris (matching DEFAULT_SETTINGS) and re-seeded from the
+  // saved default once it hydrates from localStorage — but only until the user
+  // first picks a location / clicks the map / starts a hunt, after which their
+  // choice must not be overwritten. A logo reset clears this flag (see below).
+  const userMovedRef = useRef(false);
+
+  // Live search radius, shared between the hunt form and the map's radius circle
+  // so dragging the slider updates the circle immediately (before any submit).
+  // Until the user touches the slider it follows the saved default (25 km when
+  // nothing is stored) — mirroring the hunt form's own seeding logic.
+  const { settings } = useSettings();
+  const [radiusOverride, setRadiusOverride] = useState<number | null>(null);
+  const radiusKm = radiusOverride ?? settings.defaultRadiusKm;
+
+  // Seed the initial map/form location from the saved default once it hydrates
+  // (useSettings starts at DEFAULT during hydration, then updates from
+  // localStorage). Never override a location the user has already chosen.
+  const { lat: defaultLat, lon: defaultLon, name: defaultName } =
+    settings.defaultLocation;
+  useEffect(() => {
+    if (userMovedRef.current) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync of the persisted default into the controlled center before any user action
+    setCenter({ lat: defaultLat, lon: defaultLon });
+    setLocation(defaultName);
+  }, [defaultLat, defaultLon, defaultName]);
 
   const {
     segments,
@@ -41,6 +70,7 @@ function HomePageContent() {
     explore,
     selectSegment,
     clearSelection,
+    reset,
   } = useSegments();
 
   // Training-heatmap overlay state. Nothing is fetched until the user turns the
@@ -88,9 +118,10 @@ function HomePageContent() {
         return;
       }
       setShowLoginPrompt(false);
-      // params.latitude/longitude already come from `center` (the form reads it
-      // as a controlled prop), so no need to re-sync the map here.
-      setHuntParams(params);
+      userMovedRef.current = true;
+      // params.latitude/longitude already come from `center` and params.radiusKm
+      // matches the live `radiusKm` circle (both derive from the same seed), so
+      // there is no need to re-sync the map here — just explore.
       await explore(params);
     },
     [explore, isAuthenticated]
@@ -99,6 +130,7 @@ function HomePageContent() {
   // Geocoding / "my location" from the sidebar form updates the shared center.
   const handleLocationChange = useCallback(
     (newLocation: string, lat: number, lon: number) => {
+      userMovedRef.current = true;
       setLocation(newLocation);
       setCenter({ lat, lon });
     },
@@ -117,6 +149,7 @@ function HomePageContent() {
   // to the picked point, so the next "Start Hunt" searches here. Deliberately
   // does not auto re-run explore — recentering stays predictable.
   const handleCenterChange = useCallback((lat: number, lng: number) => {
+    userMovedRef.current = true;
     setCenter({ lat, lon: lng });
     setLocation(formatCoordLabel(lat, lng));
   }, []);
@@ -129,21 +162,47 @@ function HomePageContent() {
     setIsDashboardOpen(false);
   }, []);
 
+  // Logo reset: return the whole app to a fresh default menu using the user's
+  // saved settings — recenter on the default location, drop back to the default
+  // radius/sport, and clear every transient result, overlay, drawer and toast.
+  const handleReset = useCallback(() => {
+    const { defaultLocation } = settings;
+    // Follow the saved default again (until the user next moves).
+    userMovedRef.current = false;
+    setCenter({ lat: defaultLocation.lat, lon: defaultLocation.lon });
+    setLocation(defaultLocation.name);
+    // null → radiusKm falls through to settings.defaultRadiusKm.
+    setRadiusOverride(null);
+    // Clear results (list, selection, count, error) and the heatmap overlay.
+    reset();
+    setHeatmapEnabled(false);
+    setHeatmapSport("all");
+    clearHeatmap();
+    // Close drawers / dismiss toasts.
+    setIsDashboardOpen(false);
+    setShowLoginPrompt(false);
+    // Remount the hunt form so its in-form overrides (sport/radius/filters)
+    // reset to the saved defaults — a truly fresh menu.
+    setResetKey((k) => k + 1);
+  }, [settings, reset, clearHeatmap]);
+
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Header */}
-      <Header onOpenDashboard={handleOpenDashboard} />
+      <Header onOpenDashboard={handleOpenDashboard} onReset={handleReset} />
 
       {/* Main Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
         <Sidebar
+          key={resetKey}
           onStartHunt={handleStartHunt}
           isLoading={isLoading}
           location={location}
           latitude={center.lat}
           longitude={center.lon}
           onLocationChange={handleLocationChange}
+          onRadiusChange={setRadiusOverride}
         />
 
         {/* Main Content */}
@@ -152,7 +211,8 @@ function HomePageContent() {
           selectedSegment={selectedSegment}
           centerLat={center.lat}
           centerLon={center.lon}
-          radiusKm={huntParams?.radiusKm ?? 10}
+          radiusKm={radiusKm}
+          viewResetKey={resetKey}
           isLoading={isLoading}
           isLoadingDetails={isLoadingDetails}
           onSegmentSelect={handleSegmentSelect}

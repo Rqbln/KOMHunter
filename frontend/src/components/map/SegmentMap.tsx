@@ -12,6 +12,10 @@ import { sportIcon, sportLabel, sportColorVar } from "@/lib/sport";
 // Dynamically import Leaflet to avoid SSR issues
 let L: typeof import("leaflet") | null = null;
 
+// Overview zoom the map opens on and returns to on a logo reset. Kept as a
+// single constant so the initial view and the reset view can never drift apart.
+const DEFAULT_ZOOM = 12;
+
 interface SegmentMapProps {
   segments: SegmentSummary[];
   selectedSegment: SegmentDetails | null;
@@ -24,6 +28,13 @@ interface SegmentMapProps {
   // is drawn on top of the map (kept separate from the segment markers); an
   // empty/undefined value removes it.
   heatmapPoints?: [number, number][];
+  // Bumped by the parent on a logo reset. A plain center change keeps the
+  // user's current zoom, so this dedicated signal is what snaps the map back to
+  // the default location at DEFAULT_ZOOM — needed because a reset may not move
+  // the center (default already equals the current center) and clears the
+  // results/selection, so neither the center effect nor any fitBounds re-frames
+  // the view on its own.
+  viewResetKey?: number;
 }
 
 export function SegmentMap({
@@ -35,6 +46,7 @@ export function SegmentMap({
   onSegmentClick,
   onCenterChange,
   heatmapPoints,
+  viewResetKey,
 }: SegmentMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -42,6 +54,15 @@ export function SegmentMap({
   const circleRef = useRef<L.Circle | null>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const heatLayerRef = useRef<L.Layer | null>(null);
+  // Track the last-applied center so we only re-center the view when it truly
+  // changes (map click / new location) — never on a radius change — and can
+  // preserve the user's current zoom instead of hard-resetting it.
+  const prevCenterRef = useRef<{ lat: number; lon: number } | null>(null);
+  // Track the last-fitted segment result set so fitBounds runs only on a NEW
+  // search, not when the selection changes within the same result set.
+  const prevSegmentsRef = useRef<SegmentSummary[] | null>(null);
+  // Last-seen reset signal, so the reset effect fires only on an actual bump.
+  const prevViewResetKeyRef = useRef(viewResetKey);
   // Hold the latest callback so the map's click handler (registered once in the
   // init effect) always calls the current prop without re-initializing the map.
   const onCenterChangeRef = useRef(onCenterChange);
@@ -74,10 +95,34 @@ export function SegmentMap({
           zoomControl: false,
         });
 
-        // Add tile layer (OpenStreetMap)
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        }).addTo(map);
+        // Base layers: OSM "Standard" (shown by default) plus Esri "Satellite"
+        // imagery, switchable through Leaflet's native layers control. Native
+        // controls live inside the map container's stacking context, so with the
+        // isolated wrapper they never paint over the app drawers.
+        const standard = L.tileLayer(
+          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          {
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          }
+        );
+        const satellite = L.tileLayer(
+          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          { attribution: "Tiles &copy; Esri" }
+        );
+        standard.addTo(map);
+
+        L.control
+          .layers(
+            { Standard: standard, Satellite: satellite },
+            undefined,
+            { position: "topright" }
+          )
+          .addTo(map);
+
+        // Native zoom control, bottom-right so it clears the top-corner overlays
+        // (heatmap toggle, layers switch, loading pill).
+        L.control.zoom({ position: "bottomright" }).addTo(map);
 
         // Clicking the map recenters the search around the clicked point.
         map.on("click", (e: L.LeafletMouseEvent) => {
@@ -104,9 +149,18 @@ export function SegmentMap({
     if (!mapInstanceRef.current || !L || !isMapReady) return;
 
     const map = mapInstanceRef.current;
-    map.setView([centerLat, centerLon], 12);
 
-    // Update or create radius circle
+    // Only move the view when the CENTER changes (map click / new location), and
+    // keep the user's current zoom — a radius change must never jump the zoom.
+    const prev = prevCenterRef.current;
+    const centerChanged =
+      !prev || prev.lat !== centerLat || prev.lon !== centerLon;
+    if (centerChanged) {
+      map.setView([centerLat, centerLon], map.getZoom());
+      prevCenterRef.current = { lat: centerLat, lon: centerLon };
+    }
+
+    // Update or create radius circle (always tracks the live radius).
     if (circleRef.current) {
       circleRef.current.setLatLng([centerLat, centerLon]);
       circleRef.current.setRadius(radiusKm * 1000);
@@ -120,6 +174,19 @@ export function SegmentMap({
       }).addTo(map);
     }
   }, [centerLat, centerLon, radiusKm, isMapReady]);
+
+  // Logo reset: snap the map back to the (default) center at the overview zoom.
+  // A plain center change preserves the user's zoom and, on a reset, the center
+  // may not even move (default already equals the current center) while the
+  // results/selection are cleared — so this dedicated signal is the only thing
+  // that reliably re-frames the view to the default overview.
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isMapReady) return;
+    if (prevViewResetKeyRef.current === viewResetKey) return; // no reset yet
+    prevViewResetKeyRef.current = viewResetKey;
+    mapInstanceRef.current.setView([centerLat, centerLon], DEFAULT_ZOOM);
+    prevCenterRef.current = { lat: centerLat, lon: centerLon };
+  }, [viewResetKey, centerLat, centerLon, isMapReady]);
 
   // Update markers when segments change
   useEffect(() => {
@@ -175,13 +242,17 @@ export function SegmentMap({
       markersRef.current.push(marker);
     });
 
-    // Fit bounds to show all markers if we have segments
-    if (segments.length > 0) {
+    // Fit bounds only when we receive a NEW result set (the segments array
+    // reference changed), never on a mere selection change — otherwise selecting
+    // a segment would fire a second, jarring zoom on top of the gentle polyline
+    // fit below.
+    if (segments.length > 0 && prevSegmentsRef.current !== segments) {
       const bounds = leaflet.latLngBounds(
         segments.map((s) => [s.start_latlng[0], s.start_latlng[1]])
       );
       map.fitBounds(bounds, { padding: [50, 50] });
     }
+    prevSegmentsRef.current = segments;
   }, [segments, selectedSegment, onSegmentClick, isMapReady]);
 
   // Draw polyline for selected segment
@@ -209,7 +280,15 @@ export function SegmentMap({
             opacity: 0.8,
           }).addTo(map);
 
-          map.fitBounds(polylineRef.current.getBounds(), { padding: [50, 50] });
+          // A single, gentle fly to the selected segment. maxZoom keeps it from
+          // slamming to full zoom on short segments, and the extra right-side
+          // padding keeps the segment clear of the detail panel that slides in.
+          map.flyToBounds(polylineRef.current.getBounds(), {
+            paddingTopLeft: [70, 70],
+            paddingBottomRight: [240, 70],
+            maxZoom: 15,
+            duration: 0.5,
+          });
         }
       } catch (e) {
         console.error("Failed to decode polyline:", e);
@@ -293,17 +372,10 @@ export function SegmentMap({
     };
   }, [heatmapPoints, isMapReady]);
 
-  // Zoom controls
-  const handleZoomIn = () => {
-    mapInstanceRef.current?.zoomIn();
-  };
-
-  const handleZoomOut = () => {
-    mapInstanceRef.current?.zoomOut();
-  };
-
   return (
-    <div className="absolute inset-0">
+    // `isolate` makes this an isolated stacking context so Leaflet's own
+    // controls (internally z-index ~1000) stay contained below the app drawers.
+    <div className="absolute inset-0 isolate">
       {/* Map container */}
       <div ref={mapRef} className="w-full h-full z-0" />
 
@@ -319,24 +391,8 @@ export function SegmentMap({
         </div>
       )}
 
-      {/* Map controls */}
-      <div className="absolute top-4 right-4 flex flex-col gap-2 z-[1000]">
-        <button
-          onClick={handleZoomIn}
-          className="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors"
-        >
-          <span className="material-symbols-outlined block">add</span>
-        </button>
-        <button
-          onClick={handleZoomOut}
-          className="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors"
-        >
-          <span className="material-symbols-outlined block">remove</span>
-        </button>
-        <button className="bg-white dark:bg-surface-dark p-2 rounded-lg shadow-lg hover:bg-gray-50 dark:hover:bg-surface-dark/80 transition-colors mt-2">
-          <span className="material-symbols-outlined block">layers</span>
-        </button>
-      </div>
+      {/* Zoom (native, bottom-right) and layer switch (native, top-right) are
+          added to the Leaflet map instance in the init effect. */}
 
       {/* Custom marker styles */}
       <style jsx global>{`

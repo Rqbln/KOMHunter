@@ -34,6 +34,9 @@ interface HuntParametersProps {
   latitude: number;
   longitude: number;
   onLocationChange: (location: string, lat: number, lon: number) => void;
+  // Emitted on every radius-slider move (not just on submit) so the page can
+  // update the map's radius circle live while the user drags.
+  onRadiusChange?: (km: number) => void;
 }
 
 /** Climb-category select options: ordinal 0..5 -> NC / Cat 4 .. HC. */
@@ -53,6 +56,7 @@ export function HuntParameters({
   latitude,
   longitude,
   onLocationChange,
+  onRadiusChange,
 }: HuntParametersProps) {
   // Sport and radius are seeded from the user's saved defaults, falling back to
   // riding / 25 km when nothing is stored (or before settings hydrate). Rather
@@ -156,7 +160,10 @@ export function HuntParameters({
           min={1}
           max={100}
           unit="km"
-          onChange={(value) => setRadiusOverride(value)}
+          onChange={(value) => {
+            setRadiusOverride(value);
+            onRadiusChange?.(value);
+          }}
         />
 
         {/* Max Segments Slider */}

@@ -36,6 +36,7 @@ describe("getSettings", () => {
     const stored = {
       defaultSport: "running" as const,
       defaultRadiusKm: 42,
+      defaultLocation: { name: "Lyon, France", lat: 45.764, lon: 4.8357 },
       units: "imperial" as const,
       notifyKomOpportunities: false,
       notifyWeeklySummary: true,
