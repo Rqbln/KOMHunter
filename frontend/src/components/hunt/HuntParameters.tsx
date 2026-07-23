@@ -164,7 +164,7 @@ export function HuntParameters({
           label="Max Segments"
           value={maxSegments}
           min={10}
-          max={200}
+          max={50}
           unit=""
           onChange={setMaxSegments}
         />

@@ -13,10 +13,16 @@ import type {
 } from "@/types";
 import { segments, ApiError } from "@/lib/api";
 
-/** Map API errors to user-facing messages (401 = expired session) */
+/**
+ * Map API errors to user-facing messages (401 = expired session, 429 = Strava
+ * rate limit — point the user at the usage bar instead of a raw ApiError).
+ */
 function toErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError && err.status === 401) {
     return "Session expired - log in with Strava again";
+  }
+  if (err instanceof ApiError && err.status === 429) {
+    return "Limite d'API Strava atteinte — patiente un instant (voir la barre d'usage)";
   }
   return err instanceof Error ? err.message : fallback;
 }

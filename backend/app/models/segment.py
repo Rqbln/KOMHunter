@@ -237,7 +237,7 @@ class SegmentExploreRequest(BaseModel):
         ActivityType.RIDE, 
         description="Type of activity (riding or running)"
     )
-    max_segments: int = Field(50, ge=1, le=200, description="Maximum segments to return")
+    max_segments: int = Field(50, ge=1, le=50, description="Maximum segments to return")
 
     # Result ordering. "difficulty" (default) preserves current behavior.
     # popularity/competitiveness/opportunity trigger per-segment enrichment.

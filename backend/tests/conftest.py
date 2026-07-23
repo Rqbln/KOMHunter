@@ -22,6 +22,33 @@ from app.services.strava_auth import StravaAuthService
 TEST_JWT_SECRET = os.environ["JWT_SECRET_KEY"]
 
 
+@pytest.fixture(autouse=True)
+def _reset_in_memory_state() -> Generator[None, None, None]:
+    """Isolate every test from the process-wide in-memory caches / snapshots.
+
+    The athlete/response caches, segment-detail caches and the captured
+    rate-limit snapshot all persist across requests by design; clearing them
+    before each test keeps tests independent of execution order.
+    """
+    from app.api.routes import athletes as _athletes
+    from app.api.routes import segments as _segments
+    from app.services import enrichment as _enrichment
+    from app.services import strava_api as _strava_api
+
+    def _reset() -> None:
+        _athletes._HEATMAP_CACHE.clear()
+        _athletes._ATHLETE_CACHE.clear()
+        _athletes._RESPONSE_CACHE.clear()
+        _segments._DETAIL_ROUTE_CACHE.clear()
+        _enrichment._DETAIL_CACHE.clear()
+        for key in _strava_api._RATE_LIMIT:
+            _strava_api._RATE_LIMIT[key] = None
+
+    _reset()
+    yield
+    _reset()
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """Create a synchronous test client."""

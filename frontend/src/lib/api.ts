@@ -15,6 +15,7 @@ import type {
   GeocodeResponse,
   SessionTokenResponse,
   SessionInfo,
+  RateLimitStatus,
 } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -70,6 +71,12 @@ async function fetchAPI<T>(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    // On a Strava rate-limit hit, let the app react immediately: the usage bar
+    // listens for this event and refetches /api/strava/rate-limit so the freshly
+    // captured usage/cooldown surfaces without waiting for the next poll.
+    if (response.status === 429 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("kom:ratelimit"));
+    }
     throw new ApiError(error.detail || `API error: ${response.status}`, response.status);
   }
 
@@ -198,6 +205,20 @@ export const athletes = {
 };
 
 /**
+ * Strava rate-limit API
+ */
+export const strava = {
+  /**
+   * Read the latest captured Strava rate-limit usage. This endpoint requires no
+   * auth and makes NO call to Strava — it only reports the usage the backend
+   * observed on prior responses (X-RateLimit-* headers). Safe to poll.
+   */
+  async getRateLimit(): Promise<RateLimitStatus> {
+    return fetchAPI("/api/strava/rate-limit");
+  },
+};
+
+/**
  * Geocoding API
  */
 export const geocoding = {
@@ -233,5 +254,6 @@ export default {
   auth,
   segments,
   athletes,
+  strava,
   geocoding,
 };

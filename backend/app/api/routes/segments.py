@@ -2,7 +2,7 @@
 Segment exploration and details endpoints.
 """
 import logging
-from typing import Callable
+from typing import Any, Callable, Dict
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Depends
@@ -20,10 +20,12 @@ from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
 from app.services.geocoding import GeocodingService
 from app.services.enrichment import enrich_segments
+from app.services.cache import TTLCache
 from app.api.dependencies import (
     get_strava_api_service,
     get_scoring_service,
     get_geocoding_service,
+    get_token_payload,
 )
 from app.api.errors import map_strava_error
 # Re-exported here so ``segments.parse_time_to_seconds`` keeps working for
@@ -33,6 +35,19 @@ from app.utils.formatters import parse_time_to_seconds, format_seconds_to_time
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+# Cache of fully-built SegmentDetails responses keyed by (athlete sub, segment
+# id). Opening the same segment card repeatedly (or reopening it after browsing)
+# previously re-hit Strava's ``GET /segments/{id}`` every time — this collapses
+# those to one upstream call per segment per TTL. The athlete sub MUST be part of
+# the key: the built response embeds that athlete's personal record
+# (``kom.athlete_pr_seconds`` / ``athlete_pr_time`` from Strava's per-user
+# ``athlete_segment_stats``), so a segment-id-only key would leak one user's PR
+# to every other user opening the same segment within the TTL and show them the
+# wrong "distance from the KOM". Distinct from enrichment's raw-detail cache
+# (which stores explore-time detail dicts, not the built response).
+_DETAIL_ROUTE_CACHE_TTL = 300.0
+_DETAIL_ROUTE_CACHE = TTLCache(ttl=_DETAIL_ROUTE_CACHE_TTL, max_entries=512)
 
 # Sorts that require per-segment detail (effort/athlete counts, KOM time).
 _ENRICHED_SORTS = frozenset({"popularity", "competitiveness", "opportunity"})
@@ -191,17 +206,26 @@ async def geocode_location(
 @router.get("/{segment_id}", response_model=SegmentDetails)
 async def get_segment_details(
     segment_id: int,
+    payload: Dict[str, Any] = Depends(get_token_payload),
     strava_service: StravaAPIService = Depends(get_strava_api_service),
     scoring_service: ScoringService = Depends(get_scoring_service),
 ) -> SegmentDetails:
     """
     Get detailed information about a specific segment.
-    
+
     Returns segment details including:
     - Polyline for map display
     - KOM/QOM information from the xoms field
     - Full difficulty breakdown using the unified formula
     """
+    # Key by (athlete sub, segment id): the response embeds this athlete's own PR
+    # (athlete_segment_stats), so a segment-only key would serve one user's PR to
+    # another. Mirrors the (sub, ...) keying of /me/stats, /me/koms, /me/starred.
+    cache_key = (payload.get("sub"), segment_id)
+    cached = _DETAIL_ROUTE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         # Get segment details from Strava
         segment_data = await strava_service.get_segment_details(segment_id)
@@ -285,7 +309,7 @@ async def get_segment_details(
             weights_used=difficulty_result.get("weights_used"),
         )
         
-        return SegmentDetails(
+        result = SegmentDetails(
             id=segment_data["id"],
             name=segment_data["name"],
             distance=distance_m,
@@ -313,6 +337,8 @@ async def get_segment_details(
             kom_suspicious=kom_suspicious,
             activity_type=sport,
         )
+        _DETAIL_ROUTE_CACHE.set(cache_key, result)
+        return result
 
     except HTTPException:
         raise

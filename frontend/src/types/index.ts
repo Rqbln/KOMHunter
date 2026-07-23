@@ -249,6 +249,30 @@ export interface GeocodeResponse {
   results: GeocodingResult[];
 }
 
+// Rate-limit types
+//
+// Snapshot of Strava's API usage as last observed by the backend (captured from
+// the X-RateLimit-* / X-ReadRateLimit-* response headers on real Strava calls).
+// GET /api/strava/rate-limit serves this without making any Strava call. A window
+// with a `null` usage/limit means no header has been captured for it yet.
+export interface RateLimitWindow {
+  usage: number | null;
+  limit: number | null;
+}
+
+export interface RateLimitStatus {
+  // 15-minute (short-term) window, e.g. 42/100.
+  short_term: RateLimitWindow;
+  // Daily window, e.g. 315/1000.
+  daily: RateLimitWindow;
+  // Seconds until Strava's wall-clock-aligned 15-min window rolls over
+  // (900 - epoch % 900). Always present, even before any capture.
+  seconds_until_reset: number;
+  // Epoch seconds of the last header capture; null when nothing captured yet
+  // (the bar hides until this is non-null).
+  updated_at: number | null;
+}
+
 // Auth types
 export interface SessionTokenResponse {
   token: string;

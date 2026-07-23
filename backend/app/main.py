@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.api.routes import auth, segments, athletes, health
+from app.api.routes import auth, segments, athletes, health, strava
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
     app.include_router(athletes.router, prefix="/api/athletes", tags=["Athletes"])
     app.include_router(segments.router, prefix="/api/segments", tags=["Segments"])
+    app.include_router(strava.router, prefix="/api/strava", tags=["Strava"])
     
     # Root endpoint
     @app.get("/", include_in_schema=False)
