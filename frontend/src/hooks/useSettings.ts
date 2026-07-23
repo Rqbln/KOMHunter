@@ -20,11 +20,20 @@ import type { ActivityType } from "@/types";
 
 export type SettingsUnits = "metric" | "imperial";
 
+/** A saved starting point for the map/hunt form and the logo-reset target. */
+export interface DefaultLocation {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
 export interface Settings {
   /** Sport the hunt form starts on. */
   defaultSport: ActivityType;
   /** Search radius (km) the hunt form starts on. */
   defaultRadiusKm: number;
+  /** City the map/hunt form centers on by default, and where the logo reset returns. */
+  defaultLocation: DefaultLocation;
   /** Display units — stored preference only; no value conversion is applied yet. */
   units: SettingsUnits;
   /** Local opt-in for future KOM-opportunity alerts (no server push yet). */
@@ -38,6 +47,7 @@ const STORAGE_KEY = "kom_settings";
 export const DEFAULT_SETTINGS: Settings = {
   defaultSport: "riding",
   defaultRadiusKm: 25,
+  defaultLocation: { name: "Paris, France", lat: 48.8566, lon: 2.3522 },
   units: "metric",
   notifyKomOpportunities: true,
   notifyWeeklySummary: false,

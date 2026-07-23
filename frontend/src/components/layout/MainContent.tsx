@@ -18,6 +18,8 @@ interface MainContentProps {
   centerLat: number;
   centerLon: number;
   radiusKm: number;
+  // Bumped on a logo reset to snap the map back to the default location/zoom.
+  viewResetKey?: number;
   isLoading?: boolean;
   isLoadingDetails?: boolean;
   onSegmentSelect: (segmentId: number) => void;
@@ -42,6 +44,7 @@ export function MainContent({
   centerLat,
   centerLon,
   radiusKm,
+  viewResetKey,
   isLoading,
   isLoadingDetails,
   onSegmentSelect,
@@ -76,14 +79,17 @@ export function MainContent({
     <main
       className={`flex-1 flex flex-col min-w-0 bg-background relative overflow-hidden ${className}`}
     >
-      {/* Map Section */}
-      <div className="h-[55%] w-full relative group">
+      {/* Map Section. `isolate z-0` makes this its own stacking context sitting
+          below the app drawers (fixed z-50), so neither these overlays nor
+          Leaflet's internal controls can ever paint over an open drawer. */}
+      <div className="h-[55%] w-full relative group isolate z-0">
         <SegmentMap
           segments={segments}
           selectedSegment={selectedSegment}
           centerLat={centerLat}
           centerLon={centerLon}
           radiusKm={radiusKm}
+          viewResetKey={viewResetKey}
           onSegmentClick={onSegmentSelect}
           onCenterChange={onCenterChange}
           heatmapPoints={heatmapPoints}
@@ -91,7 +97,7 @@ export function MainContent({
 
         {/* Training-heatmap control (only meaningful when logged in) */}
         {heatmapAvailable && (
-          <div className="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-2">
+          <div className="absolute top-4 left-4 z-30 flex flex-col items-start gap-2">
             <button
               type="button"
               onClick={onHeatmapToggle}
@@ -135,14 +141,15 @@ export function MainContent({
         )}
 
         {/* Zone-selection hint */}
-        <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none bg-surface/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 text-xs text-subtle-green">
+        <div className="absolute bottom-4 left-4 z-20 pointer-events-none bg-surface/90 backdrop-blur px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 text-xs text-subtle-green">
           <span className="material-symbols-outlined text-sm leading-none">ads_click</span>
           Cliquez sur la carte pour recentrer la recherche
         </div>
 
-        {/* Loading indicator for segment details */}
+        {/* Loading indicator for segment details. Top-center so it never shares
+            the top-right corner with the map's layer switch. */}
         {isLoadingDetails && (
-          <div className="absolute top-4 right-4 bg-surface px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 z-20">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-surface px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 z-30">
             <div className="size-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span className="text-sm">Chargement...</span>
           </div>

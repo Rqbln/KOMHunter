@@ -15,6 +15,7 @@
 import { Header } from "@/components/layout/Header";
 import { SportTypeToggle } from "@/components/hunt/SportTypeToggle";
 import { RadiusSlider } from "@/components/hunt/RadiusSlider";
+import { LocationInput } from "@/components/hunt/LocationInput";
 import { useStrava, useSettings } from "@/hooks";
 import type { SettingsUnits } from "@/hooks";
 
@@ -167,6 +168,27 @@ function SettingsPageContent() {
                 </div>
 
                 <div className="space-y-6">
+                  {/* Default location */}
+                  <div>
+                    <p className="mb-3 text-sm font-medium">
+                      Localisation par défaut
+                    </p>
+                    <LocationInput
+                      value={settings.defaultLocation.name}
+                      onChange={(name, lat, lon) =>
+                        update({ defaultLocation: { name, lat, lon } })
+                      }
+                    />
+                    <p className="mt-2 text-xs text-subtle-green">
+                      Ville de départ de la carte et du formulaire — le clic sur
+                      le logo réinitialise la chasse ici. Actuel&nbsp;:{" "}
+                      <span className="font-medium text-foreground">
+                        {settings.defaultLocation.name}
+                      </span>
+                      .
+                    </p>
+                  </div>
+
                   {/* Default sport */}
                   <div>
                     <p className="mb-3 text-sm font-medium">Sport par défaut</p>

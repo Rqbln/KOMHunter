@@ -17,6 +17,8 @@ interface SidebarProps {
   latitude: number;
   longitude: number;
   onLocationChange: (location: string, lat: number, lon: number) => void;
+  // Forwarded to the hunt form so the map's radius circle can track the slider.
+  onRadiusChange?: (km: number) => void;
 }
 
 export function Sidebar({
@@ -27,6 +29,7 @@ export function Sidebar({
   latitude,
   longitude,
   onLocationChange,
+  onRadiusChange,
 }: SidebarProps) {
   const { logout, isAuthenticated } = useStrava();
 
@@ -53,6 +56,7 @@ export function Sidebar({
           latitude={latitude}
           longitude={longitude}
           onLocationChange={onLocationChange}
+          onRadiusChange={onRadiusChange}
         />
       </div>
 
