@@ -278,6 +278,82 @@ class TestExploreSegments:
         assert response.status_code == 502
 
 
+def _tile_segment(seg_id: int) -> dict:
+    """A minimal explore-result segment carrying the fields the route needs."""
+    return {
+        "id": seg_id,
+        "name": f"Segment {seg_id}",
+        "distance": 4000.0,
+        "avg_grade": 4.0,
+        "elev_difference": 160.0,
+        "start_latlng": [48.85, 2.35],
+        "end_latlng": [48.86, 2.36],
+        "climb_category": 1,
+    }
+
+
+def _tile_body(ids) -> dict:
+    return {"segments": [_tile_segment(i) for i in ids]}
+
+
+class TestExploreTiling:
+    """POST /api/segments/explore tiles the area to exceed Strava's ~10/box cap."""
+
+    @respx.mock
+    def test_tiling_returns_deduped_union_truncated_to_max(
+        self, client: TestClient, auth_headers: dict
+    ):
+        # max_segments=30 -> N = min(4, ceil(sqrt(30/10))) = 2 -> 2x2 = 4 tiles.
+        # Each tile returns a DIFFERENT body (respx serves the side_effect list in
+        # call order); bodies overlap so dedup-by-id is exercised. Union of unique
+        # ids spans 1..32 (32 ids); truncation caps the response at 30.
+        bodies = [
+            httpx.Response(200, json=_tile_body(range(1, 11))),    # 1..10
+            httpx.Response(200, json=_tile_body(range(11, 21))),   # 11..20
+            httpx.Response(200, json=_tile_body(range(21, 31))),   # 21..30
+            httpx.Response(200, json=_tile_body([5, 6, 25, 26, 31, 32])),  # overlaps + 31,32
+        ]
+        route = respx.get(STRAVA_EXPLORE_URL).mock(side_effect=bodies)
+
+        payload = {**EXPLORE_REQUEST, "max_segments": 30}
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Tiling happened (more than one explore call) but stayed within the cap.
+        assert route.call_count == 4
+        assert 1 < route.call_count <= 16
+
+        ids = [s["id"] for s in data["segments"]]
+        # Deduped: no repeats.
+        assert len(ids) == len(set(ids))
+        # More than a single box could ever yield.
+        assert len(ids) > 10
+        # Truncated to max_segments (32 unique ids available -> capped at 30).
+        assert len(ids) == 30
+        assert data["total_count"] == 30
+        # Every returned id belongs to the union that was mocked.
+        assert set(ids) <= set(range(1, 33))
+
+    @respx.mock
+    def test_small_max_segments_uses_single_call(
+        self, client: TestClient, auth_headers: dict
+    ):
+        # max_segments <= 10 must not tile: exactly one explore call.
+        route = respx.get(STRAVA_EXPLORE_URL).mock(
+            return_value=httpx.Response(200, json=EXPLORE_RESPONSE)
+        )
+        payload = {**EXPLORE_REQUEST, "max_segments": 5}
+        response = client.post(
+            "/api/segments/explore", json=payload, headers=auth_headers
+        )
+        assert response.status_code == 200
+        assert route.call_count == 1
+
+
 # Three explore segments used by the enriched-sort tests. Geometry is uniform
 # (distance 5000 m, grade 5%) so ordering is driven purely by the per-segment
 # detail (effort/athlete counts + KOM time) mocked in each test.

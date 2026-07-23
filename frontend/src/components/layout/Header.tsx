@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStrava } from "@/hooks";
+import { NotificationsBell } from "./NotificationsBell";
 
 interface HeaderProps {
   className?: string;
@@ -15,7 +16,6 @@ interface HeaderProps {
 
 const NAV_LINKS: { href: string; label: string }[] = [
   { href: "/", label: "Explorer" },
-  { href: "/search", label: "Recherche" },
 ];
 
 export function Header({ className, onOpenDashboard }: HeaderProps) {
@@ -73,16 +73,7 @@ export function Header({ className, onOpenDashboard }: HeaderProps) {
           >
             <span className="material-symbols-outlined text-[20px]">settings</span>
           </Link>
-          <Link
-            href="/settings"
-            aria-label="Notifications"
-            className="flex items-center justify-center rounded-full size-10 bg-border hover:bg-primary/20 transition-colors relative"
-          >
-            <span className="material-symbols-outlined text-[20px]">
-              notifications
-            </span>
-            <span className="absolute top-2 right-2 size-2 bg-primary rounded-full"></span>
-          </Link>
+          <NotificationsBell />
         </div>
 
         {/* User info */}
