@@ -10,7 +10,22 @@ import type {
   AthleteKOM,
   StarredSegment,
 } from "@/types";
-import { athletes } from "@/lib/api";
+import { athletes, ApiError } from "@/lib/api";
+
+/**
+ * Map a fetch error to a user-facing dashboard message. On a Strava rate-limit
+ * hit (429) point the user at the header usage bar rather than surfacing a raw
+ * ApiError; on 401 flag an expired session. Otherwise fall back to the message.
+ */
+function toStatsError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.status === 429) {
+    return "Limite d'API Strava atteinte, réessaie bientôt (voir la barre d'usage en haut)";
+  }
+  if (err instanceof ApiError && err.status === 401) {
+    return "Session expirée — reconnecte-toi avec Strava";
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 
 interface UseAthleteStatsReturn {
   stats: AthleteStats | null;
@@ -55,7 +70,7 @@ export function useAthleteStats(): UseAthleteStatsReturn {
       setStats(data);
     } catch (err) {
       console.error("Failed to fetch athlete stats:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch stats");
+      setError(toStatsError(err, "Failed to fetch stats"));
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +90,7 @@ export function useAthleteStats(): UseAthleteStatsReturn {
       setKomsCount(response.total_count);
     } catch (err) {
       console.error("Failed to fetch KOMs:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch KOMs");
+      setError(toStatsError(err, "Failed to fetch KOMs"));
     } finally {
       setIsLoadingKoms(false);
     }
@@ -95,7 +110,7 @@ export function useAthleteStats(): UseAthleteStatsReturn {
       setStarredCount(response.total_count);
     } catch (err) {
       console.error("Failed to fetch starred segments:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch starred segments");
+      setError(toStatsError(err, "Failed to fetch starred segments"));
     } finally {
       setIsLoadingStarred(false);
     }

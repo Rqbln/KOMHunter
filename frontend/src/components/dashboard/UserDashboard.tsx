@@ -4,7 +4,7 @@
  * User dashboard component - shows stats, KOMs, and starred segments
  */
 
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStrava, useAthleteStats } from "@/hooks";
 import { sportColorVar } from "@/lib/sport";
 import { StatsSummary } from "./StatsSummary";
@@ -70,13 +70,48 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
     isLoading,
     isLoadingKoms,
     isLoadingStarred,
+    error,
     komsCount,
     starredCount,
-    fetchAll,
+    fetchStats,
+    fetchKOMs,
+    fetchStarredSegments,
   } = useAthleteStats();
 
   const [activeTab, setActiveTab] = useState<TabType>("stats");
   const [komFilter, setKomFilter] = useState<KomFilter>("all");
+
+  // Lazy per-tab loading: each of the three tabs backs a separate (rate-limited)
+  // Strava call, so fetch only the tab the user actually looks at, once. The ref
+  // persists across open/close, so reopening the dashboard doesn't re-hit Strava.
+  const loadedTabs = useRef<Set<TabType>>(new Set());
+
+  const loadTab = useCallback(
+    (tab: TabType) => {
+      if (loadedTabs.current.has(tab)) return;
+      loadedTabs.current.add(tab);
+      if (tab === "stats") fetchStats();
+      else if (tab === "koms") fetchKOMs();
+      else fetchStarredSegments();
+    },
+    [fetchStats, fetchKOMs, fetchStarredSegments]
+  );
+
+  // Switch tab and lazily fetch its data the first time it's opened.
+  const handleTabChange = useCallback(
+    (tab: TabType) => {
+      setActiveTab(tab);
+      if (isAuthenticated) loadTab(tab);
+    },
+    [isAuthenticated, loadTab]
+  );
+
+  // Retry the active tab after an error (e.g. a 429): clear its loaded flag and
+  // fetch again.
+  const retryActiveTab = useCallback(() => {
+    loadedTabs.current.delete(activeTab);
+    loadTab(activeTab);
+  }, [activeTab, loadTab]);
 
   const hasRunKoms = koms.some((kom) => kom.activity_type === "running");
   const hasRideKoms = koms.some((kom) => kom.activity_type !== "running");
@@ -89,12 +124,13 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
             : kom.activity_type !== "running"
         );
 
-  // Fetch data when dashboard opens and user is authenticated
+  // On open, load only the default (Stats) tab. KOMs and Favoris load lazily the
+  // first time each tab is activated — see handleTabChange.
   useEffect(() => {
     if (isOpen && isAuthenticated) {
-      fetchAll();
+      loadTab("stats");
     }
-  }, [isOpen, isAuthenticated, fetchAll]);
+  }, [isOpen, isAuthenticated, loadTab]);
 
   const tabs: { id: TabType; label: string; icon: string; count?: number }[] = [
     { id: "stats", label: "Stats", icon: "analytics" },
@@ -151,7 +187,7 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`flex-1 py-3 px-2 text-sm font-medium transition-colors relative ${
                 activeTab === tab.id
                   ? "text-primary"
@@ -176,6 +212,28 @@ export function UserDashboard({ isOpen, onClose, onSelectSegment }: UserDashboar
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4">
+          {/* Error banner (friendly on a 429; points at the header usage bar) */}
+          {error && (
+            <div
+              role="alert"
+              className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+            >
+              <span className="material-symbols-outlined text-amber-500 text-xl leading-none">
+                error
+              </span>
+              <div className="flex-1 text-sm">
+                <p className="text-foreground">{error}</p>
+                <button
+                  type="button"
+                  onClick={retryActiveTab}
+                  className="mt-1 text-xs font-semibold text-primary hover:underline"
+                >
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Stats Tab */}
           {activeTab === "stats" && (
             <StatsSummary stats={stats} isLoading={isLoading} />

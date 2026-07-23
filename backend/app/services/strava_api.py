@@ -7,7 +7,8 @@ segment exploration, details, and leaderboards.
 import asyncio
 import logging
 import math
-from typing import Dict, Any, List, Optional
+import time
+from typing import Dict, Any, List, Optional, Tuple
 
 import httpx
 
@@ -21,6 +22,81 @@ logger = logging.getLogger(__name__)
 _EXPLORE_PER_BOX = 10          # observed per-bbox cap from Strava
 _MAX_TILES_PER_SIDE = 4        # hard cap: 4x4 = 16 tiles (protect 100 req/15min)
 _TILE_CONCURRENCY = 5          # bounded concurrent explore calls
+
+# Strava's short-term rate-limit window is a wall-clock-aligned 15-minute
+# (900-second) bucket: it resets at :00, :15, :30, :45 past the hour, not 15
+# minutes after your first call.
+_RATE_LIMIT_WINDOW = 900
+
+# Latest rate-limit usage captured from Strava response headers. Strava returns
+# these on EVERY response (including 429s): X-RateLimit-Limit / X-RateLimit-Usage
+# are the general "100,1000" short,daily counters, and X-ReadRateLimit-* mirror
+# them for read requests specifically. All our calls are reads, so we prefer the
+# read-specific values when present and fall back to the general ones. Values
+# stay None until the first successful capture.
+_RATE_LIMIT: Dict[str, Any] = {
+    "short_term_usage": None,
+    "short_term_limit": None,
+    "daily_usage": None,
+    "daily_limit": None,
+    "updated_at": None,
+}
+
+
+def get_rate_limit_status() -> Dict[str, Any]:
+    """Return a shallow copy of the latest captured rate-limit snapshot."""
+    return dict(_RATE_LIMIT)
+
+
+def seconds_until_reset() -> int:
+    """Seconds until Strava's wall-clock-aligned 15-minute window resets."""
+    return _RATE_LIMIT_WINDOW - (int(time.time()) % _RATE_LIMIT_WINDOW)
+
+
+def _parse_limit_pair(value: Optional[str]) -> Tuple[Optional[int], Optional[int]]:
+    """Parse a Strava ``"short,daily"`` header into two ints.
+
+    Returns ``(None, None)`` when the header is missing or garbled so the caller
+    can leave the previously captured values untouched.
+    """
+    if not value:
+        return None, None
+    parts = value.split(",")
+    if len(parts) < 2:
+        return None, None
+    try:
+        return int(parts[0].strip()), int(parts[1].strip())
+    except (ValueError, TypeError):
+        return None, None
+
+
+def _capture_rate_limit(headers: Any) -> None:
+    """Update ``_RATE_LIMIT`` from a Strava response's headers (best-effort).
+
+    Prefers the read-specific headers (our calls are all reads) and falls back
+    to the general counters. Missing or unparseable headers leave the prior
+    values intact rather than clobbering them with ``None``.
+    """
+    read_usage = headers.get("X-ReadRateLimit-Usage")
+    read_limit = headers.get("X-ReadRateLimit-Limit")
+    usage_su, usage_du = _parse_limit_pair(
+        read_usage if read_usage else headers.get("X-RateLimit-Usage")
+    )
+    limit_sl, limit_dl = _parse_limit_pair(
+        read_limit if read_limit else headers.get("X-RateLimit-Limit")
+    )
+
+    updated = False
+    if usage_su is not None and usage_du is not None:
+        _RATE_LIMIT["short_term_usage"] = usage_su
+        _RATE_LIMIT["daily_usage"] = usage_du
+        updated = True
+    if limit_sl is not None and limit_dl is not None:
+        _RATE_LIMIT["short_term_limit"] = limit_sl
+        _RATE_LIMIT["daily_limit"] = limit_dl
+        updated = True
+    if updated:
+        _RATE_LIMIT["updated_at"] = time.time()
 
 
 class StravaAPIService:
@@ -68,6 +144,9 @@ class StravaAPIService:
                 data=data,
                 timeout=30.0,
             )
+            # Capture rate-limit usage from EVERY response — including 429s —
+            # BEFORE raise_for_status() can short-circuit and discard them.
+            _capture_rate_limit(response.headers)
             response.raise_for_status()
             return response.json()
     

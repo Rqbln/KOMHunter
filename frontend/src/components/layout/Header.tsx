@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStrava } from "@/hooks";
 import { NotificationsBell } from "./NotificationsBell";
+import { RateLimitBar } from "./RateLimitBar";
 
 interface HeaderProps {
   className?: string;
@@ -59,6 +60,9 @@ export function Header({ className, onOpenDashboard }: HeaderProps) {
 
       {/* Right side */}
       <div className="flex flex-1 justify-end gap-6 items-center">
+        {/* Strava API usage bar (app-wide chrome) */}
+        <RateLimitBar />
+
         {/* Action buttons */}
         <div className="hidden md:flex gap-2">
           <Link

@@ -22,6 +22,7 @@ from app.models.athlete import (
 )
 from app.services.strava_api import StravaAPIService
 from app.services.scoring import ScoringService
+from app.services.cache import TTLCache
 from app.api.dependencies import (
     get_strava_api_service,
     get_scoring_service,
@@ -33,6 +34,38 @@ from app.utils.polyline import decode_polyline
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
+
+# --- Athlete / response caches ---------------------------------------------
+# Opening the dashboard fires /me, /me/stats and /me/koms near-simultaneously,
+# each of which independently re-fetched the athlete profile (3 redundant
+# /athlete calls) and re-fetched its own payload on every reload. Two short-TTL
+# caches collapse that:
+#   * _ATHLETE_CACHE   keyed by athlete sub -> raw /athlete dict, so the three
+#     endpoints share a single profile fetch.
+#   * _RESPONSE_CACHE  keyed by (sub, endpoint, page, per_page) -> the built
+#     response model, so repeat opens within the TTL cost zero Strava calls.
+# Both are LRU-bounded (keys are user-scoped and paginated) and expire quickly
+# enough that stale data is never shown for long.
+_ATHLETE_CACHE_TTL = 90.0
+_ATHLETE_CACHE = TTLCache(ttl=_ATHLETE_CACHE_TTL, max_entries=512)
+_RESPONSE_CACHE_TTL = 90.0
+_RESPONSE_CACHE = TTLCache(ttl=_RESPONSE_CACHE_TTL, max_entries=1024)
+
+
+async def _get_cached_athlete(
+    sub: Any, strava_service: StravaAPIService
+) -> Dict[str, Any]:
+    """Return the athlete profile for ``sub``, fetching once per TTL.
+
+    Shared by /me, /me/stats and /me/koms so a single dashboard open makes at
+    most one ``/athlete`` call instead of three. Errors are not cached.
+    """
+    cached = _ATHLETE_CACHE.get(sub)
+    if cached is not None:
+        return cached
+    athlete_data = await strava_service.get_athlete()
+    _ATHLETE_CACHE.set(sub, athlete_data)
+    return athlete_data
 
 # --- Training-heatmap tuning constants -------------------------------------
 # Strava caps activities pagination at 200/page. Using the max keeps the number
@@ -137,16 +170,17 @@ def parse_activity_totals(data: Optional[dict]) -> Optional[ActivityTotals]:
 
 @router.get("/me", response_model=AthleteProfile)
 async def get_my_profile(
+    payload: Dict[str, Any] = Depends(get_token_payload),
     strava_service: StravaAPIService = Depends(get_strava_api_service),
 ) -> AthleteProfile:
     """
     Get the authenticated athlete's profile.
-    
+
     Returns profile information including name, location, and stats.
     """
     try:
-        athlete_data = await strava_service.get_athlete()
-        
+        athlete_data = await _get_cached_athlete(payload.get("sub"), strava_service)
+
         return AthleteProfile(
             id=athlete_data["id"],
             firstname=athlete_data.get("firstname", ""),
@@ -173,22 +207,30 @@ async def get_my_profile(
 
 @router.get("/me/stats", response_model=AthleteStats)
 async def get_my_stats(
+    payload: Dict[str, Any] = Depends(get_token_payload),
     strava_service: StravaAPIService = Depends(get_strava_api_service),
 ) -> AthleteStats:
     """
     Get the authenticated athlete's statistics.
-    
-    Returns activity totals and records.
+
+    Returns activity totals and records. Cached per athlete for a short TTL so
+    repeat dashboard opens don't re-hit Strava.
     """
+    sub = payload.get("sub")
+    cache_key = (sub, "stats")
+    cached = _RESPONSE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
-        # First get athlete ID
-        athlete_data = await strava_service.get_athlete()
+        # Athlete id comes from the shared (cached) profile fetch.
+        athlete_data = await _get_cached_athlete(sub, strava_service)
         athlete_id = athlete_data["id"]
-        
+
         # Then get stats
         stats_data = await strava_service.get_athlete_stats(athlete_id)
-        
-        return AthleteStats(
+
+        result = AthleteStats(
             biggest_ride_distance=stats_data.get("biggest_ride_distance"),
             biggest_climb_elevation_gain=stats_data.get("biggest_climb_elevation_gain"),
             recent_ride_totals=parse_activity_totals(stats_data.get("recent_ride_totals")),
@@ -198,7 +240,9 @@ async def get_my_stats(
             all_ride_totals=parse_activity_totals(stats_data.get("all_ride_totals")),
             all_run_totals=parse_activity_totals(stats_data.get("all_run_totals")),
         )
-        
+        _RESPONSE_CACHE.set(cache_key, result)
+        return result
+
     except HTTPException:
         raise
     except httpx.HTTPStatusError as e:
@@ -212,18 +256,26 @@ async def get_my_stats(
 async def get_my_koms(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(30, ge=1, le=100, description="Items per page"),
+    payload: Dict[str, Any] = Depends(get_token_payload),
     strava_service: StravaAPIService = Depends(get_strava_api_service),
 ) -> KOMsResponse:
     """
     Get the authenticated athlete's KOMs/QOMs.
-    
-    Returns segments where the athlete holds a KOM or QOM.
+
+    Returns segments where the athlete holds a KOM or QOM. Cached per athlete +
+    page for a short TTL so repeat dashboard opens don't re-hit Strava.
     """
+    sub = payload.get("sub")
+    cache_key = (sub, "koms", page, per_page)
+    cached = _RESPONSE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
-        # First get athlete ID
-        athlete_data = await strava_service.get_athlete()
+        # Athlete id comes from the shared (cached) profile fetch.
+        athlete_data = await _get_cached_athlete(sub, strava_service)
         athlete_id = athlete_data["id"]
-        
+
         # Get KOMs
         koms_data = await strava_service.list_athlete_koms(
             athlete_id=athlete_id,
@@ -258,13 +310,15 @@ async def get_my_koms(
                 kom_rank=entry.get("kom_rank"),
             ))
         
-        return KOMsResponse(
+        result = KOMsResponse(
             koms=koms,
             total_count=len(koms),  # Strava doesn't return total count
             page=page,
             per_page=per_page,
         )
-        
+        _RESPONSE_CACHE.set(cache_key, result)
+        return result
+
     except HTTPException:
         raise
     except httpx.HTTPStatusError as e:
@@ -278,11 +332,21 @@ async def get_my_koms(
 async def get_my_starred_segments(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(30, ge=1, le=100, description="Items per page"),
+    payload: Dict[str, Any] = Depends(get_token_payload),
     strava_service: StravaAPIService = Depends(get_strava_api_service),
 ) -> StarredSegmentsResponse:
     """
     Get the authenticated athlete's starred (favorite) segments.
+
+    Cached per athlete + page for a short TTL so repeat dashboard opens don't
+    re-hit Strava (this endpoint was the source of the 429 in fetchAll).
     """
+    sub = payload.get("sub")
+    cache_key = (sub, "starred", page, per_page)
+    cached = _RESPONSE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
     try:
         starred_data = await strava_service.list_starred_segments(
             page=page,
@@ -307,13 +371,15 @@ async def get_my_starred_segments(
                 athlete_pr_effort=seg.get("athlete_pr_effort"),
             ))
         
-        return StarredSegmentsResponse(
+        result = StarredSegmentsResponse(
             segments=segments,
             total_count=len(segments),
             page=page,
             per_page=per_page,
         )
-        
+        _RESPONSE_CACHE.set(cache_key, result)
+        return result
+
     except HTTPException:
         raise
     except httpx.HTTPStatusError as e:

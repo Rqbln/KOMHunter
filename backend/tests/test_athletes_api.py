@@ -353,10 +353,9 @@ class TestGetMyHeatmap:
         response = client.get("/api/athletes/me/heatmap", headers=auth_headers)
 
         assert response.status_code == 429
-        assert (
-            response.json()["detail"]
-            == "Strava rate limit exceeded - try again later"
-        )
+        # map_strava_error now embeds the cooldown and sets Retry-After.
+        assert response.json()["detail"].startswith("Strava rate limit exceeded - retry in")
+        assert "Retry-After" in response.headers
 
     def test_heatmap_negative_after_rejected(
         self, client: TestClient, auth_headers: dict

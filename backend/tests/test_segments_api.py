@@ -262,10 +262,9 @@ class TestExploreSegments:
             "/api/segments/explore", json=EXPLORE_REQUEST, headers=auth_headers
         )
         assert response.status_code == 429
-        assert (
-            response.json()["detail"]
-            == "Strava rate limit exceeded - try again later"
-        )
+        # map_strava_error now embeds the cooldown and sets Retry-After.
+        assert response.json()["detail"].startswith("Strava rate limit exceeded - retry in")
+        assert "Retry-After" in response.headers
 
     @respx.mock
     def test_strava_500_maps_to_api_502(self, client: TestClient, auth_headers: dict):
@@ -689,6 +688,63 @@ class TestSegmentDetails:
         assert kom["athlete_pr_seconds"] == 905
         assert kom["athlete_pr_time"] == "15:05"
         assert kom["kom_suspicious"] is False
+
+    @respx.mock
+    def test_details_cache_is_per_athlete_not_shared(
+        self, client: TestClient, make_jwt
+    ):
+        """Detail cache must be keyed per athlete, never by segment_id alone.
+
+        Regression: the response embeds the requesting athlete's own PR
+        (athlete_segment_stats.pr_elapsed_time -> kom.athlete_pr_seconds). With a
+        segment-id-only cache key, User A opening a segment poisoned the entry
+        with A's PR, so User B opening the same segment within the TTL received
+        A's private effort time as their own 'distance from the KOM'.
+        """
+        body_a = {
+            **SEGMENT_DETAILS_RESPONSE,
+            "athlete_segment_stats": {"pr_elapsed_time": 905},
+        }
+        # B has never ridden it: Strava returns no athlete_segment_stats.
+        body_b = {k: v for k, v in SEGMENT_DETAILS_RESPONSE.items()}
+        route = respx.get(STRAVA_SEGMENT_URL).mock(
+            side_effect=[
+                httpx.Response(200, json=body_a),
+                httpx.Response(200, json=body_b),
+            ]
+        )
+
+        headers_a = {"Authorization": f"Bearer {make_jwt(athlete_id=111)}"}
+        headers_b = {"Authorization": f"Bearer {make_jwt(athlete_id=222)}"}
+
+        resp_a = client.get("/api/segments/12345678", headers=headers_a)
+        assert resp_a.status_code == 200
+        assert resp_a.json()["kom"]["athlete_pr_seconds"] == 905
+
+        resp_b = client.get("/api/segments/12345678", headers=headers_b)
+        assert resp_b.status_code == 200
+        # B's own PR is null — it must NOT see A's cached 905.
+        kom_b = resp_b.json()["kom"]
+        assert kom_b is None or kom_b.get("athlete_pr_seconds") is None
+        # A different sub is a cache miss, so B's request reached Strava.
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_details_cached_per_athlete_single_upstream_call(
+        self, client: TestClient, auth_headers: dict
+    ):
+        """Repeat opens by the SAME athlete hit the cache: one upstream call."""
+        route = respx.get(STRAVA_SEGMENT_URL).mock(
+            return_value=httpx.Response(200, json=SEGMENT_DETAILS_RESPONSE)
+        )
+        first = client.get("/api/segments/12345678", headers=auth_headers)
+        second = client.get("/api/segments/12345678", headers=auth_headers)
+
+        assert first.status_code == 200
+        assert second.status_code == 200
+        assert first.json() == second.json()
+        # Second open is served from cache — Strava is hit exactly once.
+        assert route.call_count == 1
 
     @respx.mock
     def test_details_flags_suspicious_kom(
